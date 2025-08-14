@@ -63,7 +63,10 @@ class GameEngine:
             'gdp': self.economic_state.gdp,
             'inflation': self.economic_state.inflation_rate,
             'employment': self.economic_state.employment_rate,
-            'players': {name: player.get_status() for name, player in self.players.items()}
+            'money_supply': self.economic_state.money_supply,
+            'gdp_history': self.economic_state.gdp_history,
+            'm2_history': self.economic_state.m2_history,
+            'players': {n: p.get_status() for n,p in self.players.items()}
         }
     
     def get_all_players(self) -> Dict:
