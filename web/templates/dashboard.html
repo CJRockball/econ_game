@@ -5,7 +5,6 @@
   <title>Economic Simulation Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Purple gradient background */
     body {
       font-family: sans-serif;
       margin: 0; padding: 0;
@@ -30,7 +29,9 @@
     #controls button:hover { opacity: 0.8; }
     #turnDisplay { font-weight: 600; margin-left: 10px; }
 
-    #stats { display: flex; justify-content: space-around; flex-wrap: wrap; }
+    #stats {
+      display: flex; justify-content: space-around; flex-wrap: wrap; margin: 20px 0;
+    }
     .stat-card {
       background: rgba(0,0,0,0.3); padding: 15px; border-radius: 4px;
       flex: 1; min-width: 180px; text-align: center; margin: 5px;
@@ -49,7 +50,6 @@
       background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;
     }
     .player-card h3 { margin-bottom: 8px; font-size: 1.1em; }
-    .player-card div { font-size: .9em; }
     .inventory-item {
       background: rgba(255,255,255,0.2); padding: 2px 6px;
       border-radius: 3px; margin: 2px; display: inline-block;
@@ -94,7 +94,7 @@
         <div id="players"></div>
       </div>
       <div id="chartSection">
-        <h2>GDP & M2</h2>
+        <h2>GDP & M2 Over Time</h2>
         <canvas id="econChart"></canvas>
       </div>
     </div>
@@ -102,74 +102,112 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    let lastTurn=-1, gdpHist=[], m2Hist=[], turns=[];
-    const ws=new WebSocket(`ws://${location.host}/ws`);
-    ws.onmessage=e=>{
-      const d=JSON.parse(e.data);
-      if(d.type==='heartbeat')return;
-      document.getElementById('currentTurn').textContent=d.turn;
-      document.getElementById('gdpValue').textContent='$'+d.gdp.toLocaleString();
-      document.getElementById('inflationValue').textContent=(d.inflation*100).toFixed(1)+'%';
-      document.getElementById('employmentValue').textContent=d.employment.toFixed(1)+'%';
-      document.getElementById('m2Value').textContent='$'+d.money_supply.toLocaleString();
+    let lastTurn = -1,
+        gdpHist = [],
+        m2Hist = [],
+        turns = [];
 
-      if(d.turn!==lastTurn){
-        lastTurn=d.turn;
-        turns.push('T'+d.turn);
-        gdpHist.push(...d.gdp_history.slice(gdpHist.length));
-        m2Hist.push(...d.m2_history.slice(m2Hist.length));
-        econChart.data.labels=turns;
-        econChart.data.datasets[0].data=gdpHist;
-        econChart.data.datasets[1].data=m2Hist;
-        econChart.update();
-      }
-
-      const pc=document.getElementById('players');
-      pc.innerHTML='';
-      for(const [id,p] of Object.entries(d.players)){
-        const c=document.createElement('div');c.className='player-card';
-        let inv='';
-        for(const[k,v]of Object.entries(p.inventory)){
-          inv+=`<span class="inventory-item">${k.replace(/_/g,' ')}:${v.toFixed(1)}</span>`;
+    // Initialize chart
+    let econChart;
+    function initChart() {
+      const ctx = document.getElementById('econChart').getContext('2d');
+      econChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'GDP', data: [], borderColor: 'rgba(255,255,255,0.8)', yAxisID: 'y' },
+            { label: 'M2', data: [], borderColor: 'rgba(255,200,200,0.8)', yAxisID: 'y2' }
+          ]
+        },
+        options: {
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              type: 'linear',
+              position: 'left',
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255,255,255,0.2)' }
+            },
+            y2: {
+              type: 'linear',
+              position: 'right',
+              ticks: { color: '#fff' },
+              grid: { drawOnChartArea: false }
+            }
+          },
+          plugins: { legend: { labels: { color: '#fff' } } }
         }
-        c.innerHTML=`<h3>${p.name}</h3>
+      });
+    }
+
+    // Render players
+    function updatePlayers(players) {
+      const container = document.getElementById('players');
+      container.innerHTML = '';
+      Object.entries(players).forEach(([id, p]) => {
+        const div = document.createElement('div');
+        div.className = 'player-card';
+        let inv = '';
+        Object.entries(p.inventory).forEach(([k, v]) => {
+          inv += `<span class="inventory-item">${k.replace(/_/g,' ')}:${v.toFixed(1)}</span>`;
+        });
+        div.innerHTML = `
+          <h3>${p.name}</h3>
           <div>💰 $${p.money.toLocaleString()}</div>
           <div>🏭 $${p.production_value.toLocaleString()}</div>
           <div>${inv||'No inventory'}</div>`;
-        pc.appendChild(c);
-      }
-    };
+        container.appendChild(div);
+      });
+    }
 
-    document.getElementById('startBtn').onclick=()=>{
-      fetch('/api/game/start',{method:'POST'});
-      lastTurn=-1;gdpHist=[];m2Hist=[];turns=[];
+    // Update dashboard
+    function updateDashboard(data) {
+      document.getElementById('currentTurn').textContent = data.turn;
+      document.getElementById('gdpValue').textContent = '$'+data.gdp.toLocaleString();
+      document.getElementById('inflationValue').textContent = (data.inflation*100).toFixed(1)+'%';
+      document.getElementById('employmentValue').textContent = data.employment.toFixed(1)+'%';
+      document.getElementById('m2Value').textContent = '$'+data.money_supply.toLocaleString();
+
+      if (data.turn!== lastTurn) {
+        lastTurn = data.turn;
+        turns.push('T'+data.turn);
+        gdpHist.push(...data.gdp_history.slice(gdpHist.length));
+        m2Hist.push(...data.m2_history.slice(m2Hist.length));
+        econChart.data.labels = turns;
+        econChart.data.datasets[0].data = gdpHist;
+        econChart.data.datasets[1].data = m2Hist;
+        econChart.update();
+      }
+      updatePlayers(data.players);
+    }
+
+    // WebSocket
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (msg.type==='heartbeat') return;
+      updateDashboard(msg);
     };
-    document.getElementById('advanceBtn').onclick=()=>{
+    ws.onclose = () => setTimeout(()=>location.reload(),3000);
+
+    // Initial fetch on load
+    document.addEventListener('DOMContentLoaded', () => {
+      initChart();
+      fetch('/api/game/state')
+        .then(r=>r.json())
+        .then(updateDashboard)
+        .catch(console.error);
+    });
+
+    // Controls
+    document.getElementById('startBtn').onclick = () => {
+      fetch('/api/game/start',{method:'POST'});
+      lastTurn=-1; gdpHist=[]; m2Hist=[]; turns=[];
+    };
+    document.getElementById('advanceBtn').onclick = () => {
       fetch('/api/game/advance_turn',{method:'POST'});
     };
-
-    let econChart;
-    document.addEventListener('DOMContentLoaded',()=>{
-      const ctx=document.getElementById('econChart').getContext('2d');
-      econChart=new Chart(ctx,{
-        type:'line',
-        data:{
-          labels:[],
-          datasets:[
-            {label:'GDP', data:[], borderColor:'rgba(255,255,255,0.8)', yAxisID:'y'},
-            {label:'M2', data:[], borderColor:'rgba(255,200,200,0.8)', yAxisID:'y2'}
-          ]
-        },
-        options:{
-          scales:{
-            y:{type:'linear',position:'left',ticks:{color:'#fff'},grid:{color:'rgba(255,255,255,0.2)'}},
-            y2:{type:'linear',position:'right',ticks:{color:'#fff'},grid:{drawOnChartArea:false}}
-          },
-          plugins:{legend:{labels:{color:'#fff'}}},
-          interaction:{mode:'index',intersect:false}
-        }
-      });
-    });
   </script>
 </body>
 </html>
