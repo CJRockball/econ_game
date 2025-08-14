@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Economic Simulation Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Economic Simulation Dashboard</h1>
+        
+        <!-- Game Controls -->
+        <div class="controls">
+            <button onclick="startGame()">Start New Game</button>
+            <button onclick="advanceTurn()">Advance Turn</button>
+            <span>Turn: <span id="current-turn">{{ game_state.turn }}</span></span>
+        </div>
+        
+        <!-- Economic Indicators -->
+        <div class="indicators">
+            <div class="indicator">
+                <h3>GDP</h3>
+                <span id="gdp">${{ "{:,.0f}".format(game_state.gdp) }}</span>
+            </div>
+            <div class="indicator">
+                <h3>Inflation</h3>
+                <span id="inflation">{{ "{:.1f}%".format(game_state.inflation * 100) }}</span>
+            </div>
+        </div>
+        
+        <!-- Player Status -->
+        <div class="players">
+            {% for player_id, player in game_state.players.items() %}
+            <div class="player-card">
+                <h3>{{ player.name }}</h3>
+                <p>Money: ${{ "{:,.0f}".format(player.money) }}</p>
+                <p>Production: ${{ "{:,.0f}".format(player.production_value) }}</p>
+                <div class="inventory">
+                    {% for item, quantity in player.inventory.items() %}
+                    <span class="inventory-item">{{ item }}: {{ quantity }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Economic Chart -->
+        <canvas id="gdpChart" width="400" height="200"></canvas>
+    </div>
+    
+    <script src="{{ url_for('static', path='/js/dashboard.js') }}"></script>
+</body>
+</html>
