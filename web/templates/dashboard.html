@@ -5,60 +5,72 @@
   <title>Economic Simulation Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Global resets and body styling */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-           background: #f0f2f5; color: #333; }
-
-    /* Container */
+    /* Purple gradient background */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; padding: 0;
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+      color: #333;
+    }
     .container { max-width: 1200px; margin: auto; padding: 20px; }
 
-    /* Header */
-    header { text-align: center; margin-bottom: 20px; }
-    header h1 { font-size: 2em; margin-bottom: 10px; }
-    #controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    header { text-align: center; margin-bottom: 20px; color: #fff; }
+    header h1 { font-size: 2em; }
+
+    #controls {
+      display: flex; justify-content: center; align-items: center;
+      gap: 10px; flex-wrap: wrap; margin: 10px 0;
+    }
     #controls button {
       padding: 10px 20px; border: none; border-radius: 4px;
-      cursor: pointer; font-weight: 600; color: #fff;
-      transition: background 0.3s;
+      color: #fff; font-weight: 600; cursor: pointer;
+      transition: opacity 0.2s;
     }
-    #startBtn { background: #28a745; }
-    #advanceBtn { background: #007bff; }
-    #controls button:hover { opacity: 0.9; }
-    #turnDisplay { font-weight: 600; margin-left: 10px; }
+    #startBtn { background: #4a148c; }     /* deep purple */
+    #advanceBtn { background: #512da8; }   /* indigo */
+    #startBtn:hover, #advanceBtn:hover { opacity: 0.8; }
 
-    /* Stats row */
-    #stats { display: flex; justify-content: space-around; margin: 20px 0; }
+    #turnDisplay {
+      font-weight: 600; color: #fff; margin-left: 10px;
+    }
+
+    #stats {
+      display: flex; justify-content: space-around;
+      margin: 20px 0; flex-wrap: wrap;
+    }
     .stat-card {
-      background: #fff; padding: 15px; border-radius: 4px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1); flex: 1; text-align: center;
-      margin: 0 5px;
+      background: rgba(255,255,255,0.9); padding: 15px;
+      border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      flex: 1; min-width: 180px; text-align: center; margin: 5px;
     }
-    .stat-card h2 { font-size: 1em; color: #666; margin-bottom: 5px; }
-    .stat-card p { font-size: 1.5em; font-weight: bold; }
+    .stat-card h2 { font-size: 1em; color: #555; margin-bottom: 5px; }
+    .stat-card p { font-size: 1.4em; font-weight: bold; }
 
-    /* Main grid */
-    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .main-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
     @media(max-width:800px) { .main-grid { grid-template-columns: 1fr; } }
 
-    /* Players */
-    #players { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 15px; }
-    .player-card {
-      background: #fff; padding: 15px; border-radius: 4px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    #players {
+      display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+      gap: 15px;
     }
-    .player-card h3 { margin-bottom: 10px; font-size: 1.1em; }
-    .player-card .money, .player-card .production { font-weight: 600; }
-    .inventory { margin-top: 10px; font-size: 0.9em; color: #555; }
+    .player-card {
+      background: rgba(255,255,255,0.9); padding: 10px;
+      border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .player-card h3 { margin-bottom: 8px; font-size: 1.1em; }
+    .player-card .inventory { font-size: .85em; color: #555; margin-top: 8px; }
     .inventory-item {
-      display: inline-block; background: #e9ecef; padding: 3px 6px;
-      border-radius: 3px; margin: 2px; font-size: 0.8em;
+      background: #e1bee7; /* light purple */
+      padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;
     }
 
-    /* Chart section */
-    #chartSection { background: #fff; padding: 15px; border-radius: 4px;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    #chartSection h2 { margin-bottom: 10px; font-size: 1.2em; text-align: center; }
+    #chartSection {
+      background: rgba(255,255,255,0.9); padding: 15px;
+      border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    #chartSection h2 { text-align: center; color: #555; margin-bottom: 10px; }
     #econChart { width: 100%; height: 300px; }
   </style>
 </head>
@@ -75,31 +87,24 @@
 
     <div id="stats">
       <div class="stat-card">
-        <h2>GDP</h2>
-        <p id="gdpValue">$0</p>
+        <h2>GDP</h2><p id="gdpValue">$0</p>
       </div>
       <div class="stat-card">
-        <h2>Inflation</h2>
-        <p id="inflationValue">0%</p>
+        <h2>Inflation</h2><p id="inflationValue">0%</p>
       </div>
       <div class="stat-card">
-        <h2>Employment</h2>
-        <p id="employmentValue">100%</p>
+        <h2>Employment</h2><p id="employmentValue">100%</p>
       </div>
       <div class="stat-card">
-        <h2>M2 Money Supply</h2>
-        <p id="m2Value">$0</p>
+        <h2>M2 Money Supply</h2><p id="m2Value">$0</p>
       </div>
     </div>
 
     <div class="main-grid">
-      <!-- Players -->
       <div>
-        <h2>Economic Sectors</h2>
+        <h2 style="color:#fff; text-align:center;">Economic Sectors</h2>
         <div id="players"></div>
       </div>
-
-      <!-- Chart -->
       <div id="chartSection">
         <h2>GDP vs M2 Over Time</h2>
         <canvas id="econChart"></canvas>
@@ -109,114 +114,82 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    let lastTurn = -1,
-        gdpHistory = [],
-        m2History = [],
-        turns = [];
+    let lastTurn = -1, gdpHistory = [], m2History = [], turns = [];
 
-    // Initialize WebSocket
     const ws = new WebSocket(`ws://${location.host}/ws`);
     ws.onmessage = e => {
       const data = JSON.parse(e.data);
       if (data.type === 'heartbeat') return;
 
-      // Update stats
+      // Update controls/stats
       document.getElementById('currentTurn').textContent = data.turn;
       document.getElementById('gdpValue').textContent = '$' + data.gdp.toLocaleString();
-      document.getElementById('inflationValue').textContent = (data.inflation*100).toFixed(1) + '%';
-      document.getElementById('employmentValue').textContent = data.employment.toFixed(1) + '%';
+      document.getElementById('inflationValue').textContent = (data.inflation*100).toFixed(1)+'%';
+      document.getElementById('employmentValue').textContent = data.employment.toFixed(1)+'%';
       document.getElementById('m2Value').textContent = '$' + data.money_supply.toLocaleString();
 
-      // Chart update on turn change
-      if (data.turn !== lastTurn) {
+      // Chart update
+      if (data.turn!==lastTurn) {
         lastTurn = data.turn;
-        turns.push('T' + data.turn);
+        turns.push('T'+data.turn);
         gdpHistory.push(...data.gdp_history.slice(gdpHistory.length));
         m2History.push(...data.m2_history.slice(m2History.length));
-        updateChart();
+        econChart.data.labels = turns;
+        econChart.data.datasets[0].data = gdpHistory;
+        econChart.data.datasets[1].data = m2History;
+        econChart.update();
       }
 
-      // Update player panels
-      updatePlayers(data.players);
-    };
-
-    // Player rendering
-    function updatePlayers(players) {
+      // Players update
       const container = document.getElementById('players');
       container.innerHTML = '';
-      for (const [id, p] of Object.entries(players)) {
-        const div = document.createElement('div');
-        div.className = 'player-card';
-        let invHtml = '';
-        for (const [item, qty] of Object.entries(p.inventory)) {
-          invHtml += `<span class="inventory-item">${item.replace(/_/g,' ')}: ${qty.toFixed(1)}</span>`;
-        }
-        div.innerHTML = `
+      Object.entries(data.players).forEach(([id,p])=>{
+        const card = document.createElement('div');
+        card.className='player-card';
+        let inv='';
+        Object.entries(p.inventory).forEach(([k,v])=>{
+          inv+=`<span class="inventory-item">${k.replace(/_/g,' ')}:${v.toFixed(1)}</span>`;
+        });
+        card.innerHTML=`
           <h3>${p.name}</h3>
-          <div>💰 <span class="money">$${p.money.toLocaleString()}</span></div>
-          <div>🏭 <span class="production">$${p.production_value.toLocaleString()}</span></div>
-          <div class="inventory">${invHtml || 'No inventory'}</div>`;
-        container.appendChild(div);
-      }
-    }
+          <div>💰 $${p.money.toLocaleString()}</div>
+          <div>🏭 $${p.production_value.toLocaleString()}</div>
+          <div class="inventory">${inv||'No inventory'}</div>`;
+        container.appendChild(card);
+      });
+    };
 
-    // Chart setup
+    document.getElementById('startBtn').onclick = () => {
+      fetch('/api/game/start',{method:'POST'});
+      gdpHistory=[]; m2History=[]; turns=[]; lastTurn=-1;
+    };
+    document.getElementById('advanceBtn').onclick = () => {
+      fetch('/api/game/advance_turn',{method:'POST'});
+    };
+
+    // Chart.js init
     let econChart;
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded',()=>{
       const ctx = document.getElementById('econChart').getContext('2d');
-      econChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [
-            {
-              label: 'GDP',
-              data: [],
-              borderColor: 'rgba(75,192,192,1)',
-              yAxisID: 'y'
-            },
-            {
-              label: 'M2 Money Supply',
-              data: [],
-              borderColor: 'rgba(255,99,132,1)',
-              yAxisID: 'y2'
-            }
+      econChart = new Chart(ctx,{
+        type:'line',
+        data:{
+          labels:[],
+          datasets:[
+            { label:'GDP', data:[], borderColor:'rgba(255,255,255,0.8)', yAxisID:'y' },
+            { label:'M2', data:[], borderColor:'rgba(255,200,200,0.8)', yAxisID:'y2' }
           ]
         },
-        options: {
-          interaction: { mode: 'index', intersect: false },
-          scales: {
-            y: {
-              type: 'linear',
-              position: 'left',
-              title: { display: true, text: 'GDP' }
-            },
-            y2: {
-              type: 'linear',
-              position: 'right',
-              title: { display: true, text: 'M2' },
-              grid: { drawOnChartArea: false }
-            }
-          }
+        options:{
+          scales:{
+            y:{ type:'linear', position:'left', ticks:{ color:'#fff' }, title:{ display:true, text:'GDP', color:'#fff' } },
+            y2:{ type:'linear', position:'right', grid:{ drawOnChartArea:false }, ticks:{ color:'#fff' }, title:{ display:true, text:'M2', color:'#fff' } }
+          },
+          plugins:{ legend:{ labels:{ color:'#fff' } } },
+          interaction:{ mode:'index', intersect:false }
         }
       });
     });
-
-    function updateChart() {
-      econChart.data.labels = turns;
-      econChart.data.datasets[0].data = gdpHistory;
-      econChart.data.datasets[1].data = m2History;
-      econChart.update();
-    }
-
-    // Button events
-    document.getElementById('startBtn').onclick = () => {
-      fetch('/api/game/start',{ method: 'POST' });
-      gdpHistory = []; m2History = []; turns = []; lastTurn = -1;
-    };
-    document.getElementById('advanceBtn').onclick = () => {
-      fetch('/api/game/advance_turn',{ method: 'POST' });
-    };
   </script>
 </body>
 </html>

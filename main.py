@@ -46,7 +46,7 @@ async def get_game_state():
 async def broadcast_game_state():
     """Send game state to all connected WebSocket clients."""
     if active_connections:
-        game_state = game.economic_state.get_state()
+        game_state = game.get_state()
         message = json.dumps(game_state)
         
         # Remove disconnected clients
@@ -67,8 +67,8 @@ async def websocket_endpoint(websocket: WebSocket):
     active_connections.append(websocket)
     
     try:
-        # Send updated state on connect
-        await websocket.send_text(json.dumps(game.economic_state.get_state()))
+        # Send initial state on connect
+        await websocket.send_text(json.dumps(game.get_state()))
         
         # Keep connection alive
         while True:
