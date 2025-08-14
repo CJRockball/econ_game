@@ -1,457 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Economic Simulation Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <title>Economic Simulation Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Global resets and body styling */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #f0f2f5; color: #333; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
+    /* Container */
+    .container { max-width: 1200px; margin: auto; padding: 20px; }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    /* Header */
+    header { text-align: center; margin-bottom: 20px; }
+    header h1 { font-size: 2em; margin-bottom: 10px; }
+    #controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    #controls button {
+      padding: 10px 20px; border: none; border-radius: 4px;
+      cursor: pointer; font-weight: 600; color: #fff;
+      transition: background 0.3s;
+    }
+    #startBtn { background: #28a745; }
+    #advanceBtn { background: #007bff; }
+    #controls button:hover { opacity: 0.9; }
+    #turnDisplay { font-weight: 600; margin-left: 10px; }
 
-        /* Header */
-        header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
+    /* Stats row */
+    #stats { display: flex; justify-content: space-around; margin: 20px 0; }
+    .stat-card {
+      background: #fff; padding: 15px; border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1); flex: 1; text-align: center;
+      margin: 0 5px;
+    }
+    .stat-card h2 { font-size: 1em; color: #666; margin-bottom: 5px; }
+    .stat-card p { font-size: 1.5em; font-weight: bold; }
 
-        h1 {
-            font-size: 2em;
-            font-weight: 700;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
+    /* Main grid */
+    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width:800px) { .main-grid { grid-template-columns: 1fr; } }
 
-        .controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+    /* Players */
+    #players { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 15px; }
+    .player-card {
+      background: #fff; padding: 15px; border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .player-card h3 { margin-bottom: 10px; font-size: 1.1em; }
+    .player-card .money, .player-card .production { font-weight: 600; }
+    .inventory { margin-top: 10px; font-size: 0.9em; color: #555; }
+    .inventory-item {
+      display: inline-block; background: #e9ecef; padding: 3px 6px;
+      border-radius: 3px; margin: 2px; font-size: 0.8em;
+    }
 
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 25px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: white;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn-start {
-            background: linear-gradient(45deg, #4CAF50, #45a049);
-        }
-
-        .btn-advance {
-            background: linear-gradient(45deg, #2196F3, #1976D2);
-        }
-
-        .turn-display {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            color: #667eea;
-        }
-
-        /* Main Grid Layout */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
-            height: calc(100vh - 160px);
-        }
-
-        .left-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .right-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* Economic Indicators */
-        .indicators {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
-
-        .indicators h2 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-
-        .stat {
-            text-align: center;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-
-        .stat-value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-        }
-
-        /* Chart */
-        .chart-section {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            flex: 1;
-        }
-
-        .chart-section h2 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-
-        /* Players */
-        .players-section {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .players-section h2 {
-            margin-bottom: 15px;
-            color: #333;
-            position: sticky;
-            top: 0;
-            background: rgba(255, 255, 255, 0.95);
-            padding-bottom: 10px;
-        }
-
-        .players-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-
-        .player-card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            border-left: 4px solid #667eea;
-        }
-
-        .player-name {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        .player-stats {
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .player-stats div {
-            margin-bottom: 5px;
-        }
-
-        .inventory {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #dee2e6;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .inventory-item {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin: 2px;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
-            
-            .stats-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            header {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .players-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    /* Chart section */
+    #chartSection { background: #fff; padding: 15px; border-radius: 4px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    #chartSection h2 { margin-bottom: 10px; font-size: 1.2em; text-align: center; }
+    #econChart { width: 100%; height: 300px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Economic Simulation Dashboard</h1>
-            <div class="controls">
-                <button class="btn-start" id="startBtn">Start New Game</button>
-                <button class="btn-advance" id="advanceBtn">Advance Turn</button>
-                <div class="turn-display">Turn: <span id="currentTurn">{{ game_state.turn }}</span></div>
-            </div>
-        </header>
+  <div class="container">
+    <header>
+      <h1>Economic Simulation Dashboard</h1>
+      <div id="controls">
+        <button id="startBtn">Start New Game</button>
+        <button id="advanceBtn">Advance Turn</button>
+        <div id="turnDisplay">Turn: <span id="currentTurn">0</span></div>
+      </div>
+    </header>
 
-        <div class="main-grid">
-            <div class="left-panel">
-                <!-- Economic Indicators -->
-                <div class="indicators">
-                    <h2>Economic Indicators</h2>
-                    <div class="stats-grid">
-                        <div class="stat">
-                            <div class="stat-label">GDP</div>
-                            <div class="stat-value" id="gdpValue">${{ "{:,.0f}".format(game_state.gdp) }}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">Inflation</div>
-                            <div class="stat-value" id="inflationValue">{{ "{:.1f}%".format(game_state.inflation * 100) }}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">Employment</div>
-                            <div class="stat-value" id="employmentValue">{{ "{:.1f}%".format(game_state.employment) }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Players -->
-                <div class="players-section">
-                    <h2>Economic Sectors</h2>
-                    <div class="players-grid" id="playersContainer">
-                        {% for player_id, player in game_state.players.items() %}
-                        <div class="player-card" id="player-{{ player_id }}">
-                            <div class="player-name">{{ player.name }}</div>
-                            <div class="player-stats">
-                                <div>💰 Cash: $<span class="money">{{ "{:,.0f}".format(player.money) }}</span></div>
-                                <div>🏭 Production: $<span class="production">{{ "{:,.0f}".format(player.production_value) }}</span></div>
-                            </div>
-                            <div class="inventory">
-                                {% for item, quantity in player.inventory.items() %}
-                                <span class="inventory-item">{{ item.replace('_', ' ').title() }}: {{ "%.1f"|format(quantity) }}</span>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <div class="right-panel">
-                <!-- Chart -->
-                <div class="chart-section">
-                    <h2>GDP Trends</h2>
-                    <canvas id="gdpChart" width="400" height="300"></canvas>
-                </div>
-            </div>
-        </div>
+    <div id="stats">
+      <div class="stat-card">
+        <h2>GDP</h2>
+        <p id="gdpValue">$0</p>
+      </div>
+      <div class="stat-card">
+        <h2>Inflation</h2>
+        <p id="inflationValue">0%</p>
+      </div>
+      <div class="stat-card">
+        <h2>Employment</h2>
+        <p id="employmentValue">100%</p>
+      </div>
+      <div class="stat-card">
+        <h2>M2 Money Supply</h2>
+        <p id="m2Value">$0</p>
+      </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        // Game state
-        let lastTurn = -1;
-        let gdpData = [];
-        let chart;
+    <div class="main-grid">
+      <!-- Players -->
+      <div>
+        <h2>Economic Sectors</h2>
+        <div id="players"></div>
+      </div>
 
-        // WebSocket connection
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
-        
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            // Ignore heartbeat messages
-            if (data.type === 'heartbeat') return;
-            
-            updateDashboard(data);
-        };
+      <!-- Chart -->
+      <div id="chartSection">
+        <h2>GDP vs M2 Over Time</h2>
+        <canvas id="econChart"></canvas>
+      </div>
+    </div>
+  </div>
 
-        ws.onclose = function() {
-            console.log("WebSocket connection closed. Attempting to reconnect...");
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
-        };
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    let lastTurn = -1,
+        gdpHistory = [],
+        m2History = [],
+        turns = [];
 
-        // Update dashboard
-        function updateDashboard(gameState) {
-            // Update turn counter
-            document.getElementById('currentTurn').textContent = gameState.turn;
-            
-            // Update economic indicators
-            document.getElementById('gdpValue').textContent = '$' + gameState.gdp.toLocaleString();
-            document.getElementById('inflationValue').textContent = (gameState.inflation * 100).toFixed(1) + '%';
-            document.getElementById('employmentValue').textContent = gameState.employment.toFixed(1) + '%';
-            
-            // Update chart only when turn changes
-            if (gameState.turn !== lastTurn) {
-                lastTurn = gameState.turn;
-                gdpData.push(gameState.gdp);
-                updateChart();
-            }
-            
-            // Update players
-            updatePlayers(gameState.players);
+    // Initialize WebSocket
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onmessage = e => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'heartbeat') return;
+
+      // Update stats
+      document.getElementById('currentTurn').textContent = data.turn;
+      document.getElementById('gdpValue').textContent = '$' + data.gdp.toLocaleString();
+      document.getElementById('inflationValue').textContent = (data.inflation*100).toFixed(1) + '%';
+      document.getElementById('employmentValue').textContent = data.employment.toFixed(1) + '%';
+      document.getElementById('m2Value').textContent = '$' + data.money_supply.toLocaleString();
+
+      // Chart update on turn change
+      if (data.turn !== lastTurn) {
+        lastTurn = data.turn;
+        turns.push('T' + data.turn);
+        gdpHistory.push(...data.gdp_history.slice(gdpHistory.length));
+        m2History.push(...data.m2_history.slice(m2History.length));
+        updateChart();
+      }
+
+      // Update player panels
+      updatePlayers(data.players);
+    };
+
+    // Player rendering
+    function updatePlayers(players) {
+      const container = document.getElementById('players');
+      container.innerHTML = '';
+      for (const [id, p] of Object.entries(players)) {
+        const div = document.createElement('div');
+        div.className = 'player-card';
+        let invHtml = '';
+        for (const [item, qty] of Object.entries(p.inventory)) {
+          invHtml += `<span class="inventory-item">${item.replace(/_/g,' ')}: ${qty.toFixed(1)}</span>`;
         }
+        div.innerHTML = `
+          <h3>${p.name}</h3>
+          <div>💰 <span class="money">$${p.money.toLocaleString()}</span></div>
+          <div>🏭 <span class="production">$${p.production_value.toLocaleString()}</span></div>
+          <div class="inventory">${invHtml || 'No inventory'}</div>`;
+        container.appendChild(div);
+      }
+    }
 
-        // Update chart
-        function updateChart() {
-            if (chart) {
-                chart.data.labels = gdpData.map((_, i) => `Turn ${i + 1}`);
-                chart.data.datasets[0].data = gdpData;
-                chart.update('none');
+    // Chart setup
+    let econChart;
+    document.addEventListener('DOMContentLoaded', () => {
+      const ctx = document.getElementById('econChart').getContext('2d');
+      econChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'GDP',
+              data: [],
+              borderColor: 'rgba(75,192,192,1)',
+              yAxisID: 'y'
+            },
+            {
+              label: 'M2 Money Supply',
+              data: [],
+              borderColor: 'rgba(255,99,132,1)',
+              yAxisID: 'y2'
             }
-        }
-
-        // Update players
-        function updatePlayers(players) {
-            const container = document.getElementById('playersContainer');
-            container.innerHTML = '';
-            
-            for (const [playerId, playerData] of Object.entries(players)) {
-                const playerCard = document.createElement('div');
-                playerCard.className = 'player-card';
-                playerCard.id = `player-${playerId}`;
-                
-                let inventoryHtml = '';
-                for (const [item, quantity] of Object.entries(playerData.inventory)) {
-                    const displayName = item.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    inventoryHtml += `<span class="inventory-item">${displayName}: ${typeof quantity === 'number' ? quantity.toFixed(1) : quantity}</span>`;
-                }
-                
-                playerCard.innerHTML = `
-                    <div class="player-name">${playerData.name}</div>
-                    <div class="player-stats">
-                        <div>💰 Cash: $${playerData.money.toLocaleString()}</div>
-                        <div>🏭 Production: $${playerData.production_value.toLocaleString()}</div>
-                    </div>
-                    <div class="inventory">${inventoryHtml || '<span class="inventory-item">No items</span>'}</div>
-                `;
-                
-                container.appendChild(playerCard);
+          ]
+        },
+        options: {
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'GDP' }
+            },
+            y2: {
+              type: 'linear',
+              position: 'right',
+              title: { display: true, text: 'M2' },
+              grid: { drawOnChartArea: false }
             }
+          }
         }
+      });
+    });
 
-        // Button handlers
-        document.getElementById('startBtn').onclick = function() {
-            fetch('/api/game/start', {method: 'POST'})
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Game started:', data);
-                    gdpData = [];
-                    lastTurn = -1;
-                });
-        };
+    function updateChart() {
+      econChart.data.labels = turns;
+      econChart.data.datasets[0].data = gdpHistory;
+      econChart.data.datasets[1].data = m2History;
+      econChart.update();
+    }
 
-        document.getElementById('advanceBtn').onclick = function() {
-            fetch('/api/game/advance_turn', {method: 'POST'})
-                .then(response => response.json())
-                .then(data => console.log('Turn advanced:', data));
-        };
-
-        // Initialize chart
-        document.addEventListener('DOMContentLoaded', function() {
-            const ctx = document.getElementById('gdpChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'GDP ($)',
-                        data: gdpData,
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toLocaleString();
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-        });
-    </script>
+    // Button events
+    document.getElementById('startBtn').onclick = () => {
+      fetch('/api/game/start',{ method: 'POST' });
+      gdpHistory = []; m2History = []; turns = []; lastTurn = -1;
+    };
+    document.getElementById('advanceBtn').onclick = () => {
+      fetch('/api/game/advance_turn',{ method: 'POST' });
+    };
+  </script>
 </body>
 </html>
