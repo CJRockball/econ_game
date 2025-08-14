@@ -1,4 +1,4 @@
-# main.py
+# main.py - REPLACE ENTIRELY
 import asyncio
 import json
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -30,14 +30,12 @@ async def dashboard(request: Request):
 @app.post("/api/game/start")
 async def start_game():
     game.start_new_game()
-    # Broadcast update to all connected clients
     await broadcast_game_state()
     return {"status": "Game started", "turn": game.current_turn}
 
 @app.post("/api/game/advance_turn") 
 async def advance_turn():
     game.advance_turn()
-    # Broadcast update to all connected clients
     await broadcast_game_state()
     return {"status": "Turn advanced", "turn": game.current_turn}
 
@@ -51,7 +49,6 @@ async def broadcast_game_state():
         game_state = game.get_state()
         message = json.dumps(game_state)
         
-        # Remove disconnected clients
         disconnected = []
         for connection in active_connections:
             try:
@@ -71,10 +68,19 @@ async def websocket_endpoint(websocket: WebSocket):
         # Send initial state
         await websocket.send_text(json.dumps(game.get_state()))
         
-        # Keep connection alive
+        # Keep connection alive with periodic heartbeat
         while True:
-            # Wait for client messages (optional)
-            await websocket.receive_text()
-            
+            try:
+                # Wait for any message or timeout after 30 seconds
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # Send periodic heartbeat
+                await websocket.send_text(json.dumps({"type": "heartbeat"}))
+            except WebSocketDisconnect:
+                break
+                
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
+        pass
+    finally:
+        if websocket in active_connections:
+            active_connections.remove(websocket)

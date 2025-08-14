@@ -1,53 +1,125 @@
+<!-- web/templates/dashboard.html - REPLACE ENTIRELY -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Economic Simulation Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Economic Simulation Dashboard</h1>
-        
-        <!-- Game Controls -->
-        <div class="controls">
-            <button onclick="startGame()">Start New Game</button>
-            <button onclick="advanceTurn()">Advance Turn</button>
-            <span>Turn: <span id="current-turn">{{ game_state.turn }}</span></span>
-        </div>
-        
-        <!-- Economic Indicators -->
-        <div class="indicators">
-            <div class="indicator">
-                <h3>GDP</h3>
-                <span id="gdp">${{ "{:,.0f}".format(game_state.gdp) }}</span>
-            </div>
-            <div class="indicator">
-                <h3>Inflation</h3>
-                <span id="inflation">{{ "{:.1f}%".format(game_state.inflation * 100) }}</span>
-            </div>
-        </div>
-        
-        <!-- Player Status -->
-        <div class="players">
-            {% for player_id, player in game_state.players.items() %}
-            <div class="player-card">
-                <h3>{{ player.name }}</h3>
-                <p>Money: ${{ "{:,.0f}".format(player.money) }}</p>
-                <p>Production: ${{ "{:,.0f}".format(player.production_value) }}</p>
-                <div class="inventory">
-                    {% for item, quantity in player.inventory.items() %}
-                    <span class="inventory-item">{{ item }}: {{ quantity }}</span>
-                    {% endfor %}
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1><i class="fas fa-chart-line"></i> Economic Simulation Dashboard</h1>
+            <div class="game-controls">
+                <button onclick="startGame()" class="btn btn-success">
+                    <i class="fas fa-play"></i> Start New Game
+                </button>
+                <button onclick="advanceTurn()" class="btn btn-primary">
+                    <i class="fas fa-forward"></i> Advance Turn
+                </button>
+                <div class="turn-counter">
+                    <i class="fas fa-clock"></i> Turn: <span id="current-turn">{{ game_state.turn }}</span>
                 </div>
             </div>
-            {% endfor %}
+        </header>
+
+        <!-- Main Content -->
+        <div class="dashboard-main">
+            <!-- Economic Indicators -->
+            <section class="indicators-section">
+                <h2><i class="fas fa-tachometer-alt"></i> Economic Indicators</h2>
+                <div class="indicators-grid">
+                    <div class="indicator-card gdp-card">
+                        <div class="indicator-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="indicator-content">
+                            <h3>GDP</h3>
+                            <span class="indicator-value" id="gdp">${{ "{:,.0f}".format(game_state.gdp) }}</span>
+                        </div>
+                    </div>
+                    <div class="indicator-card inflation-card">
+                        <div class="indicator-icon">
+                            <i class="fas fa-arrow-trend-up"></i>
+                        </div>
+                        <div class="indicator-content">
+                            <h3>Inflation</h3>
+                            <span class="indicator-value" id="inflation">{{ "{:.1f}%".format(game_state.inflation * 100) }}</span>
+                        </div>
+                    </div>
+                    <div class="indicator-card employment-card">
+                        <div class="indicator-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="indicator-content">
+                            <h3>Employment</h3>
+                            <span class="indicator-value" id="employment">{{ "{:.1f}%".format(game_state.employment) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="chart-container">
+                    <h3><i class="fas fa-chart-area"></i> Economic Trends</h3>
+                    <canvas id="gdpChart" width="400" height="200"></canvas>
+                </div>
+            </section>
+
+            <!-- Players Section -->
+            <section class="players-section">
+                <h2><i class="fas fa-building"></i> Economic Sectors</h2>
+                <div class="players-grid">
+                    {% for player_id, player in game_state.players.items() %}
+                    <div class="player-card {{ player_id }}-card" id="player-{{ player_id }}">
+                        <div class="player-header">
+                            <div class="player-icon">
+                                {% if player_id == 'raw_materials' %}
+                                    <i class="fas fa-mountain"></i>
+                                {% elif player_id == 'manufacturing' %}
+                                    <i class="fas fa-industry"></i>
+                                {% elif player_id == 'services' %}
+                                    <i class="fas fa-handshake"></i>
+                                {% elif player_id == 'consumer' %}
+                                    <i class="fas fa-home"></i>
+                                {% elif player_id == 'financial' %}
+                                    <i class="fas fa-university"></i>
+                                {% else %}
+                                    <i class="fas fa-landmark"></i>
+                                {% endif %}
+                            </div>
+                            <h3>{{ player.name }}</h3>
+                        </div>
+                        <div class="player-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Cash:</span>
+                                <span class="stat-value money">${{ "{:,.0f}".format(player.money) }}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Production:</span>
+                                <span class="stat-value production">${{ "{:,.0f}".format(player.production_value) }}</span>
+                            </div>
+                        </div>
+                        <div class="inventory">
+                            <h4><i class="fas fa-boxes"></i> Inventory</h4>
+                            <div class="inventory-items">
+                                {% for item, quantity in player.inventory.items() %}
+                                <span class="inventory-item">{{ item.replace('_', ' ').title() }}: {{ "%.1f"|format(quantity) }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
         </div>
-        
-        <!-- Economic Chart -->
-        <canvas id="gdpChart" width="400" height="200"></canvas>
     </div>
-    
+
     <script src="{{ url_for('static', path='/js/dashboard.js') }}"></script>
 </body>
 </html>
