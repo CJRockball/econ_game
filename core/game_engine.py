@@ -6,18 +6,17 @@ from .turn_manager import TurnManager
 try:
     from players.raw_materials import RawMaterialsPlayer
     from players.manufacturing import ManufacturingPlayer
-    from players.services      import ServicesPlayer
-    from players.consumer      import ConsumerPlayer
-    from players.financial     import FinancialPlayer
-    from players.government    import GovernmentPlayer
-    from players.central_bank  import CentralBankPlayer
+    from players.services import ServicesPlayer
+    from players.consumer import ConsumerPlayer
+    from players.financial import FinancialPlayer
+    from players.government import GovernmentPlayer
+    from players.central_bank import CentralBankPlayer
 except ImportError as e:
     print(f"Warning: Could not import player: {e}")
-    # Provide fallback if needed
 
 class GameEngine:
     """
-    Enhanced game engine with safe method calls and error handling.
+    Enhanced game engine with transaction-based inflation tracking.
     """
     
     def __init__(self):
@@ -131,7 +130,7 @@ class GameEngine:
             financial_player.reserves = 10000.0
         
     def advance_turn(self):
-        """Execute one complete turn with safe processing."""
+        """Execute one complete turn with transaction-based economic tracking."""
         # Update central bank with current economic conditions
         central_bank = self.players.get('central_bank')
         if (central_bank and 
@@ -153,8 +152,8 @@ class GameEngine:
         if government_player and hasattr(government_player, 'collect_taxes'):
             government_player.collect_taxes(total_gdp)
         
-        # Update economic state
-        self.economic_state.update(self.players)
+        # Update economic state with turn manager for transaction prices
+        self.economic_state.update(self.players, self.turn_manager)
         
         # Increment turn counter
         self.current_turn += 1
@@ -185,6 +184,16 @@ class GameEngine:
                     direction = 'expanded' if money_growth > 0 else 'contracted'
                     events.append(f"Money supply {direction} by {money_growth:.1%}")
         
+        # Check for significant price level changes
+        if len(self.economic_state.price_history) > 1:
+            current_prices = self.economic_state.price_level
+            previous_prices = self.economic_state.price_history[-2]
+            if previous_prices > 0:
+                price_change = (current_prices - previous_prices) / previous_prices
+                if abs(price_change) > 0.02:  # 2% change in price level
+                    direction = 'rose' if price_change > 0 else 'fell'
+                    events.append(f"Price level {direction} by {price_change:.1%}")
+        
         # Store events for UI display (keep last 5 events)
         self.recent_events.extend(events)
         self.recent_events = self.recent_events[-5:]
@@ -207,6 +216,22 @@ class GameEngine:
             except Exception as e:
                 players_status[name] = {'name': name, 'error': str(e)}
         
+        # Add current market prices to player status
+        try:
+            raw_materials_player = self.players.get('raw_materials')
+            if raw_materials_player and hasattr(raw_materials_player, 'current_price'):
+                players_status['raw_materials']['current_price'] = round(raw_materials_player.current_price, 2)
+                
+            manufacturing_player = self.players.get('manufacturing')  
+            if manufacturing_player and hasattr(manufacturing_player, 'current_price'):
+                players_status['manufacturing']['current_price'] = round(manufacturing_player.current_price, 2)
+                
+            services_player = self.players.get('services')
+            if services_player and hasattr(services_player, 'current_price'):
+                players_status['services']['current_price'] = round(services_player.current_price, 2)
+        except:
+            pass  # Price info is optional
+        
         state = {
             'turn': self.current_turn,
             'central_bank_mode': self.central_bank_mode,
@@ -223,7 +248,8 @@ class GameEngine:
                 'inflation_history': getattr(self.economic_state, 'inflation_history', []),
                 'employment_history': getattr(self.economic_state, 'employment_history', []),
                 'velocity_history': getattr(self.economic_state, 'velocity_history', []),
-                'interest_rate_history': getattr(self.economic_state, 'interest_rate_history', [])
+                'interest_rate_history': getattr(self.economic_state, 'interest_rate_history', []),
+                'price_history': getattr(self.economic_state, 'price_history', [])
             })
         except:
             pass  # History data is optional

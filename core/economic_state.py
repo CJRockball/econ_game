@@ -3,7 +3,7 @@ from typing import Dict
 
 class EconomicState:
     """
-    Enhanced Economic State implementing MV = PY relationship with safe access.
+    Enhanced Economic State with transaction-based inflation calculation.
     """
     
     def __init__(self):
@@ -33,9 +33,22 @@ class EconomicState:
         self.government_spending = 0.0
         self.net_exports = 0.0
         
-        # Price level (for MV = PY)
-        self.price_level = 1.0
-        self.previous_price_level = 1.0
+        # PRICE LEVEL TRACKING - Key for inflation
+        self.price_level = 100.0  # Base price index = 100
+        self.previous_price_level = 100.0
+        self.price_history = []
+        
+        # Consumer Price Index components
+        self.cpi_basket = {
+            'finished_goods': 0.6,    # 60% weight
+            'services': 0.3,          # 30% weight  
+            'raw_materials': 0.1      # 10% weight
+        }
+        self.last_prices = {
+            'finished_goods': 18.0,
+            'services': 15.0,
+            'raw_materials': 8.0
+        }
         
         # New money created this turn
         self.new_money_created = 0.0
@@ -50,9 +63,16 @@ class EconomicState:
         self.turn_count = 0
         self.money_velocity = 2.0
         self.previous_money_supply = 100_000.0
-        self.price_level = 1.0
-        self.previous_price_level = 1.0
+        self.price_level = 100.0
+        self.previous_price_level = 100.0
         self.new_money_created = 0.0
+        
+        # Reset last prices to defaults
+        self.last_prices = {
+            'finished_goods': 18.0,
+            'services': 15.0,
+            'raw_materials': 8.0
+        }
         
         # Clear all histories
         self.gdp_history.clear()
@@ -61,6 +81,7 @@ class EconomicState:
         self.employment_history.clear()
         self.velocity_history.clear()
         self.interest_rate_history.clear()
+        self.price_history.clear()
         
     def calculate_money_velocity(self) -> float:
         """Calculate velocity of money: V = GDP / M2"""
@@ -86,15 +107,56 @@ class EconomicState:
         else:
             self.previous_money_supply = self.money_supply
     
-    def calculate_inflation_mv_py(self):
-        """Calculate inflation using MV = PY relationship."""
+    def calculate_transaction_based_inflation(self, turn_manager):
+        """Calculate inflation using actual transaction prices (CPI approach)."""
+        # Get transaction prices from turn manager
+        if hasattr(turn_manager, 'get_transaction_prices'):
+            transaction_prices = turn_manager.get_transaction_prices()
+        else:
+            transaction_prices = {}
+        
+        # Update last known prices with actual transactions
+        for good_type, price in transaction_prices.items():
+            if good_type in self.last_prices:
+                self.last_prices[good_type] = price
+        
+        # Calculate weighted price index (CPI)
+        self.previous_price_level = self.price_level
+        
+        current_index = 0.0
+        for good_type, weight in self.cpi_basket.items():
+            if good_type in self.last_prices:
+                # Normalize to base price for index calculation
+                base_price = {'finished_goods': 18.0, 'services': 15.0, 'raw_materials': 8.0}[good_type]
+                price_ratio = self.last_prices[good_type] / base_price
+                current_index += weight * price_ratio * 100
+        
+        # Update price level
+        if current_index > 0:
+            # Smooth price level adjustment to avoid volatility
+            adjustment_speed = 0.6
+            self.price_level = (self.price_level * (1 - adjustment_speed) + 
+                              current_index * adjustment_speed)
+        
+        # Calculate inflation rate
+        if self.previous_price_level > 0:
+            self.inflation_rate = (self.price_level - self.previous_price_level) / self.previous_price_level
+        else:
+            self.inflation_rate = 0.0
+        
+        # Add small economic noise but keep bounded
+        noise = random.uniform(-0.002, 0.002)
+        self.inflation_rate = max(-0.05, min(0.15, self.inflation_rate + noise))
+    
+    def calculate_inflation_mv_py_fallback(self):
+        """Fallback inflation calculation using MV = PY if no transactions."""
         # Calculate money velocity
         self.money_velocity = self.calculate_money_velocity()
         
         # MV = PY, so P = MV/Y
         if self.gdp > 0:
-            # Price level from quantity equation
-            theoretical_price_level = (self.money_supply * self.money_velocity) / self.gdp
+            # Theoretical price level from quantity equation  
+            theoretical_price_level = (self.money_supply * self.money_velocity) / self.gdp * 10  # Scale factor
             
             # Smooth price level adjustment
             adjustment_speed = 0.3
@@ -170,8 +232,8 @@ class EconomicState:
         # Keep employment within reasonable bounds
         self.employment_rate = max(75.0, min(98.0, self.employment_rate))
     
-    def update(self, players: Dict):
-        """Comprehensive economic state update - SAFE ACCESS."""
+    def update(self, players: Dict, turn_manager=None):
+        """Comprehensive economic state update with transaction-based inflation."""
         self.turn_count += 1
         
         # Update GDP components
@@ -180,8 +242,15 @@ class EconomicState:
         # Update money supply from bank lending
         self.update_money_supply(players)
         
-        # Calculate inflation using MV = PY
-        self.calculate_inflation_mv_py()
+        # Calculate money velocity
+        self.money_velocity = self.calculate_money_velocity()
+        
+        # Calculate inflation using transaction prices if available
+        if turn_manager and hasattr(turn_manager, 'get_transaction_prices'):
+            self.calculate_transaction_based_inflation(turn_manager)
+        else:
+            # Fallback to MV = PY approach
+            self.calculate_inflation_mv_py_fallback()
         
         # Update employment
         self.update_employment(players)
@@ -192,6 +261,7 @@ class EconomicState:
         self.inflation_history.append(self.inflation_rate)
         self.employment_history.append(self.employment_rate)
         self.velocity_history.append(self.money_velocity)
+        self.price_history.append(self.price_level)
         
         # Store interest rates if available
         financial_player = players.get('financial')
@@ -218,5 +288,6 @@ class EconomicState:
             'consumption': round(self.consumption, 2),
             'investment': round(self.investment, 2),
             'government_spending': round(self.government_spending, 2),
-            'gdp_growth': round(gdp_growth, 2)
+            'gdp_growth': round(gdp_growth, 2),
+            'last_prices': {k: round(v, 2) for k, v in self.last_prices.items()}
         }

@@ -3,7 +3,7 @@ import random
 
 class TurnManager:
     """
-    Enhanced turn manager with safe method calls and proper error handling.
+    Enhanced turn manager with dynamic pricing and actual transaction tracking.
     """
 
     def __init__(self):
@@ -14,9 +14,16 @@ class TurnManager:
             self.goods_markets_phase,
             self.update_phase,
         ]
+        # Track transaction prices for inflation calculation
+        self.transaction_prices = {}
+        self.transaction_volumes = {}
 
     def execute_turn(self, players: Dict[str, object]):
         """Execute all phases in sequence for one turn - SAFE EXECUTION."""
+        # Reset transaction tracking each turn
+        self.transaction_prices.clear()
+        self.transaction_volumes.clear()
+        
         for phase in self.phases:
             try:
                 phase(players)
@@ -105,7 +112,7 @@ class TurnManager:
                     financial_player.accept_deposit(player, deposit_amount)
 
     def goods_markets_phase(self, players: Dict[str, object]):
-        """Clear goods and services markets - SAFE ACCESS."""
+        """Clear goods and services markets with dynamic pricing - SAFE ACCESS."""
         self.clear_labor_market(players)
         self.clear_raw_materials_market(players)
         self.clear_finished_goods_market(players)
@@ -140,7 +147,7 @@ class TurnManager:
             consumer_player.inventory['wages_received'] = consumer_player.inventory.get('wages_received', 0) + total_wages
 
     def clear_raw_materials_market(self, players: Dict[str, object]):
-        """Raw Materials → Manufacturing - SAFE ACCESS."""
+        """Raw Materials → Manufacturing with DYNAMIC PRICING - SAFE ACCESS."""
         raw_materials_player = players.get('raw_materials')
         manufacturing_player = players.get('manufacturing')
         
@@ -152,12 +159,16 @@ class TurnManager:
         supply = raw_materials_player.inventory.get('raw_materials', 0)
         
         if supply > 0 and getattr(manufacturing_player, 'money', 0) > 100:
-            # Enhanced pricing with technology effects
-            base_price = 8.0
+            # Initialize price if not set
+            if not hasattr(raw_materials_player, 'current_price'):
+                raw_materials_player.current_price = 8.0
+            
+            # Dynamic pricing based on supply and previous sales
+            base_price = raw_materials_player.current_price
             tech_factor = getattr(raw_materials_player, 'technology_level', 1.0)
             supply_factor = max(0.5, min(2.0, 50 / max(supply, 1)))
             
-            # Higher tech reduces costs, lower prices
+            # Price per unit considering technology
             price_per_unit = (base_price * supply_factor) / tech_factor
             
             # Manufacturing demand
@@ -173,9 +184,24 @@ class TurnManager:
                 
                 manufacturing_player.inventory['raw_materials'] = manufacturing_player.inventory.get('raw_materials', 0) + demand
                 manufacturing_player.money -= total_cost
+                
+                # Track transaction for inflation calculation
+                self.transaction_prices['raw_materials'] = price_per_unit
+                self.transaction_volumes['raw_materials'] = demand
+                
+                # Adjust price for next turn based on demand/supply ratio
+                if demand >= supply:  # Sold out - raise price
+                    raw_materials_player.current_price *= 1.05
+                elif demand < supply * 0.5:  # Low demand - lower price
+                    raw_materials_player.current_price *= 0.95
+                else:  # Normal demand - small adjustment
+                    raw_materials_player.current_price *= 1.01
+            else:
+                # No sales - lower price more aggressively
+                raw_materials_player.current_price *= 0.92
 
     def clear_finished_goods_market(self, players: Dict[str, object]):
-        """Manufacturing → Consumer - SAFE ACCESS."""
+        """Manufacturing → Consumer with DYNAMIC PRICING - SAFE ACCESS."""
         manufacturing_player = players.get('manufacturing')
         consumer_player = players.get('consumer')
         
@@ -187,17 +213,21 @@ class TurnManager:
         supply = manufacturing_player.inventory.get('finished_goods', 0)
         
         if supply > 0 and getattr(consumer_player, 'money', 0) > 50:
-            # Quality and technology affect pricing
-            base_price = 18.0
+            # Initialize price if not set
+            if not hasattr(manufacturing_player, 'current_price'):
+                manufacturing_player.current_price = 18.0
+            
+            # Dynamic pricing
+            base_price = manufacturing_player.current_price
             tech_factor = getattr(manufacturing_player, 'technology_level', 1.0)
             supply_factor = max(0.7, min(1.8, 30 / max(supply, 1)))
             
-            # Higher tech enables premium pricing
+            # Price considering technology and quality
             price_per_unit = base_price * supply_factor * (0.8 + 0.4 * tech_factor)
             
             # Consumer demand affected by income and prices
             max_affordable = consumer_player.money / price_per_unit
-            demand = min(max_affordable * 0.4, 25, supply)
+            demand = min(max_affordable * 0.6, 25, supply)  # Increased from 0.4 to 0.6
             
             if demand > 0:
                 total_cost = demand * price_per_unit
@@ -208,38 +238,77 @@ class TurnManager:
                 
                 consumer_player.inventory['finished_goods'] = consumer_player.inventory.get('finished_goods', 0) + demand
                 consumer_player.money -= total_cost
+                
+                # Track transaction for inflation calculation
+                self.transaction_prices['finished_goods'] = price_per_unit
+                self.transaction_volumes['finished_goods'] = demand
+                
+                # Adjust price for next turn
+                if demand >= supply:  # Sold out - raise price
+                    manufacturing_player.current_price *= 1.05
+                elif demand < supply * 0.5:  # Low demand - lower price
+                    manufacturing_player.current_price *= 0.95
+                else:  # Normal demand
+                    manufacturing_player.current_price *= 1.01
+            else:
+                # No sales - lower price
+                manufacturing_player.current_price *= 0.92
 
     def clear_services_market(self, players: Dict[str, object]):
-        """Services market - SAFE ACCESS."""
+        """Services market with DYNAMIC PRICING - SAFE ACCESS."""
         services_player = players.get('services')
         if not (services_player and hasattr(services_player, 'money')):
             return
+        
+        # Initialize service price if not set
+        if not hasattr(services_player, 'current_price'):
+            services_player.current_price = 15.0
             
         total_service_revenue = 0
+        total_service_units = 0
         
         for player_name, player in players.items():
             if (player_name not in ['services', 'central_bank'] and 
                 hasattr(player, 'money') and getattr(player, 'money', 0) > 80):
                 
                 # Service demand varies by player type and productivity
-                base_spending = 0.0
-                
                 if player_name == 'consumer':
-                    base_spending = min(player.money * 0.15, 150)
+                    desired_units = min(player.money / services_player.current_price * 0.15, 10)
                 elif player_name == 'financial':
-                    base_spending = min(player.money * 0.08, 100)
+                    desired_units = min(player.money / services_player.current_price * 0.08, 6)
                 else:
                     # Business services scale with production and technology
                     tech_factor = getattr(player, 'technology_level', 1.0)
-                    base_spending = min(player.money * 0.12 * tech_factor, 120)
+                    desired_units = min(player.money / services_player.current_price * 0.12 * tech_factor, 8)
                 
-                if base_spending > 0:
-                    player.money -= base_spending
-                    total_service_revenue += base_spending
+                if desired_units > 0:
+                    service_cost = desired_units * services_player.current_price
+                    if player.money >= service_cost:
+                        player.money -= service_cost
+                        total_service_revenue += service_cost
+                        total_service_units += desired_units
         
         services_player.money += total_service_revenue
         if hasattr(services_player, 'inventory'):
             services_player.inventory['services_provided'] = services_player.inventory.get('services_provided', 0) + total_service_revenue
+        
+        # Track transaction for inflation calculation
+        if total_service_units > 0:
+            avg_service_price = total_service_revenue / total_service_units
+            self.transaction_prices['services'] = avg_service_price
+            self.transaction_volumes['services'] = total_service_units
+            
+            # Adjust service price for next turn based on demand
+            capacity_utilization = total_service_units / 50  # Assume 50 unit capacity
+            if capacity_utilization > 0.9:  # High demand
+                services_player.current_price *= 1.04
+            elif capacity_utilization < 0.5:  # Low demand
+                services_player.current_price *= 0.96
+            else:  # Normal demand
+                services_player.current_price *= 1.01
+        else:
+            # No demand - lower price
+            services_player.current_price *= 0.93
 
     def update_phase(self, players: Dict[str, object]):
         """Update player states - SAFE ACCESS."""
@@ -314,3 +383,11 @@ class TurnManager:
                 if (player_name not in ['consumer', 'central_bank'] and
                     hasattr(player, 'productivity_factor')):
                     player.productivity_factor *= 1.05
+
+    def get_transaction_prices(self) -> Dict[str, float]:
+        """Get current turn's transaction prices for inflation calculation."""
+        return self.transaction_prices.copy()
+    
+    def get_transaction_volumes(self) -> Dict[str, float]:
+        """Get current turn's transaction volumes."""
+        return self.transaction_volumes.copy()
