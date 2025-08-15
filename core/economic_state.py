@@ -272,14 +272,14 @@ class EconomicState:
             self.interest_rate_history.append(0.05)  # Default rate
         
     def get_economic_indicators(self) -> Dict:
-        """Get comprehensive economic indicators."""
+        """FIXED: Get comprehensive economic indicators with inflation as PERCENTAGE."""
         gdp_growth = 0.0
         if self.previous_gdp > 0:
             gdp_growth = ((self.gdp - self.previous_gdp) / self.previous_gdp) * 100
             
         return {
             'gdp': round(self.gdp, 2),
-            'inflation_rate': round(self.inflation_rate, 4),
+            'inflation_rate': round(self.inflation_rate * 100, 2),  # FIXED: Convert to percentage
             'employment_rate': round(self.employment_rate, 2),
             'money_supply': round(self.money_supply, 2),
             'money_velocity': round(self.money_velocity, 3),

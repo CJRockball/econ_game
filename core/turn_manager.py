@@ -3,15 +3,16 @@ import random
 
 class TurnManager:
     """
-    Enhanced turn manager with dynamic pricing and actual transaction tracking.
+    Enhanced turn manager with correct phase order and cash flow tracking.
     """
 
     def __init__(self):
+        # CRITICAL FIX: Goods markets BEFORE financial markets
         self.phases = [
             self.monetary_policy_phase,
             self.production_phase,
-            self.financial_market_phase,
-            self.goods_markets_phase,
+            self.goods_markets_phase,     # MOVED: Markets before deposits/loans
+            self.financial_market_phase,  # MOVED: After goods are traded
             self.update_phase,
         ]
         # Track transaction prices for inflation calculation
@@ -58,8 +59,15 @@ class TurnManager:
             if hasattr(player, 'produce'):
                 player.produce()
 
+    def goods_markets_phase(self, players: Dict[str, object]):
+        """Clear goods and services markets BEFORE financial operations - CRITICAL FIX."""
+        self.clear_labor_market(players)
+        self.clear_raw_materials_market(players)
+        self.clear_finished_goods_market(players)
+        self.clear_services_market(players)
+
     def financial_market_phase(self, players: Dict[str, object]):
-        """Enhanced financial market with safe lending - SAFE ACCESS."""
+        """Financial markets AFTER goods markets - players can deposit surplus cash."""
         financial_player = players.get('financial')
         if not (financial_player and hasattr(financial_player, 'make_loan')):
             return
@@ -83,7 +91,7 @@ class TurnManager:
                 # Reduce borrowing demand by loan amount
                 borrower.borrowing_demand = max(0, borrowing_demand - loan_amount)
         
-        # Handle deposits from excess cash
+        # Handle deposits from excess cash AFTER purchases
         self.process_deposits(players, financial_player)
         
         # Service existing debt
@@ -97,26 +105,21 @@ class TurnManager:
                     player.service_debt(commercial_rate)
 
     def process_deposits(self, players: Dict[str, object], financial_player):
-        """Process deposits from players with excess cash - SAFE ACCESS."""
+        """Process deposits ONLY from excess cash after purchases - SAFE ACCESS."""
         if not hasattr(financial_player, 'accept_deposit'):
             return
             
         for player_name, player in players.items():
             if (player_name not in ['financial', 'central_bank'] and 
                 hasattr(player, 'money') and 
-                getattr(player, 'money', 0) > 3000):
-                # Deposit excess cash above operating buffer
-                excess_cash = player.money - 3000
-                deposit_amount = excess_cash * 0.4  # Deposit 40% of excess
-                if deposit_amount > 100:
+                getattr(player, 'money', 0) > 5000):  # Higher threshold after purchases
+                
+                # More conservative deposit strategy - keep more operating cash
+                excess_cash = player.money - 5000  # Increased buffer
+                deposit_amount = excess_cash * 0.3  # Reduced from 0.4 to 0.3
+                
+                if deposit_amount > 200:  # Higher minimum deposit
                     financial_player.accept_deposit(player, deposit_amount)
-
-    def goods_markets_phase(self, players: Dict[str, object]):
-        """Clear goods and services markets with dynamic pricing - SAFE ACCESS."""
-        self.clear_labor_market(players)
-        self.clear_raw_materials_market(players)
-        self.clear_finished_goods_market(players)
-        self.clear_services_market(players)
 
     def clear_labor_market(self, players: Dict[str, object]):
         """Enhanced labor market with productivity effects - SAFE ACCESS."""
@@ -178,12 +181,11 @@ class TurnManager:
             if demand > 0:
                 total_cost = demand * price_per_unit
                 
-                # Execute trade
+                # Execute trade - CRITICAL: All three operations
                 raw_materials_player.inventory['raw_materials'] -= demand
                 raw_materials_player.money += total_cost
-                
-                manufacturing_player.inventory['raw_materials'] = manufacturing_player.inventory.get('raw_materials', 0) + demand
                 manufacturing_player.money -= total_cost
+                manufacturing_player.inventory['raw_materials'] = manufacturing_player.inventory.get('raw_materials', 0) + demand
                 
                 # Track transaction for inflation calculation
                 self.transaction_prices['raw_materials'] = price_per_unit
@@ -225,19 +227,21 @@ class TurnManager:
             # Price considering technology and quality
             price_per_unit = base_price * supply_factor * (0.8 + 0.4 * tech_factor)
             
-            # Consumer demand affected by income and prices
+            # INCREASED CONSUMER SPENDING: More aggressive purchasing
             max_affordable = consumer_player.money / price_per_unit
-            demand = min(max_affordable * 0.6, 25, supply)  # Increased from 0.4 to 0.6
+            demand = min(max_affordable * 0.8, 30, supply)  # Increased from 0.6 to 0.8
             
             if demand > 0:
                 total_cost = demand * price_per_unit
                 
-                # Execute trade
+                # Execute trade - CRITICAL: All operations
                 manufacturing_player.inventory['finished_goods'] -= demand
                 manufacturing_player.money += total_cost
-                
-                consumer_player.inventory['finished_goods'] = consumer_player.inventory.get('finished_goods', 0) + demand
                 consumer_player.money -= total_cost
+                consumer_player.inventory['finished_goods'] = consumer_player.inventory.get('finished_goods', 0) + demand
+                
+                # Track actual spending for consumer smoothing
+                consumer_player.inventory['actual_purchases'] = consumer_player.inventory.get('actual_purchases', 0) + total_cost
                 
                 # Track transaction for inflation calculation
                 self.transaction_prices['finished_goods'] = price_per_unit
@@ -273,22 +277,27 @@ class TurnManager:
                 
                 # Service demand varies by player type and productivity
                 if player_name == 'consumer':
-                    desired_units = min(player.money / services_player.current_price * 0.15, 10)
+                    desired_units = min(player.money / services_player.current_price * 0.2, 12)  # Increased
                 elif player_name == 'financial':
-                    desired_units = min(player.money / services_player.current_price * 0.08, 6)
+                    desired_units = min(player.money / services_player.current_price * 0.1, 8)   # Increased
                 else:
                     # Business services scale with production and technology
                     tech_factor = getattr(player, 'technology_level', 1.0)
-                    desired_units = min(player.money / services_player.current_price * 0.12 * tech_factor, 8)
+                    desired_units = min(player.money / services_player.current_price * 0.15 * tech_factor, 10)  # Increased
                 
                 if desired_units > 0:
                     service_cost = desired_units * services_player.current_price
                     if player.money >= service_cost:
+                        # Execute trade - CRITICAL: Both operations
                         player.money -= service_cost
+                        services_player.money += service_cost
                         total_service_revenue += service_cost
                         total_service_units += desired_units
+                        
+                        # Track consumer spending
+                        if player_name == 'consumer':
+                            player.inventory['actual_purchases'] = player.inventory.get('actual_purchases', 0) + service_cost
         
-        services_player.money += total_service_revenue
         if hasattr(services_player, 'inventory'):
             services_player.inventory['services_provided'] = services_player.inventory.get('services_provided', 0) + total_service_revenue
         
@@ -299,7 +308,7 @@ class TurnManager:
             self.transaction_volumes['services'] = total_service_units
             
             # Adjust service price for next turn based on demand
-            capacity_utilization = total_service_units / 50  # Assume 50 unit capacity
+            capacity_utilization = total_service_units / 60  # Increased capacity assumption
             if capacity_utilization > 0.9:  # High demand
                 services_player.current_price *= 1.04
             elif capacity_utilization < 0.5:  # Low demand
