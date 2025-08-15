@@ -1,201 +1,255 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Economic Simulation Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      margin: 0; padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-      color: #fff;
-    }
-    .container { max-width: 1200px; margin: auto; padding: 20px; }
-    header { text-align: center; margin-bottom: 20px; }
-    header h1 { font-size: 2em; margin-bottom: 10px; }
-    #controls {
-      display: flex; justify-content: center; align-items: center;
-      gap: 10px; flex-wrap: wrap; margin-bottom: 20px;
-    }
-    #controls button {
-      background: rgba(255,255,255,0.9);
-      border: none; border-radius: 4px;
-      padding: 10px 20px; color: #333; font-weight: 600;
-      cursor: pointer; transition: opacity 0.2s;
-    }
-    #controls button:hover { opacity: 0.8; }
-    #turnDisplay { font-weight: 600; }
-    #stats {
-      display: flex; justify-content: space-around; flex-wrap: wrap;
-      gap: 10px; margin-bottom: 20px;
-    }
-    .stat-box {
-      flex: 1; min-width: 180px;
-      background: rgba(0,0,0,0.3); padding: 15px; border-radius: 4px;
-      text-align: center;
-    }
-    .stat-box h2 { font-size: 1em; color: #ddd; margin-bottom: 5px; }
-    .stat-box p { font-size: 1.5em; font-weight: bold; color: #fff; }
-    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media(max-width:800px){ .main-grid {grid-template-columns:1fr;} }
-    #players {
-      display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
-      gap: 10px; margin-top: 10px;
-    }
-    .player-card {
-      background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;
-    }
-    .player-card h3 { margin-bottom: 8px; }
-    .inventory-item {
-      background: rgba(255,255,255,0.2); padding: 2px 6px;
-      border-radius: 3px; margin: 2px; display: inline-block;
-    }
-    #chartSection {
-      background: rgba(0,0,0,0.3); padding: 15px; border-radius: 4px;
-    }
-    #chartSection h2 { text-align: center; color: #fff; margin-bottom: 10px; }
-    #econChart { width: 100%; height: 300px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background: #0f172a; color: #e2e8f0; }
+    h1, h2, h3 { margin: 8px 0; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    button { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+    button.secondary { background: #334155; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .kpi { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 10px; }
+    .kpi .label { color: #94a3b8; font-size: 13px; }
+    .kpi .value { color: #e2e8f0; font-size: 20px; font-weight: 600; }
+    .kpi.policy { border: 2px solid #2563eb; }
+    .players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #1f2937; }
+    .row:last-child { border-bottom: none; }
+    code { background: #0b1220; color: #a5b4fc; padding: 2px 6px; border-radius: 6px; }
+    .status { font-size: 12px; color: #94a3b8; }
+    .ok { color: #22c55e; }
+    .warn { color: #f59e0b; }
+    .err { color: #ef4444; }
+    .events li { margin-bottom: 6px; }
+    .hist { font-size: 12px; color: #cbd5e1; }
+    .legend { font-size: 12px; color: #94a3b8; }
+    .flex { display: flex; gap: 8px; align-items: center; }
+    input, select { background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; }
+    .pill { border: 1px solid #1f2937; background: #0b1220; padding: 2px 8px; border-radius: 999px; font-size: 12px; color: #cbd5e1; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Economic Simulation Dashboard</h1>
-      <div id="controls">
-        <button id="startBtn">Start New Game</button>
-        <button id="advanceBtn">Advance Turn</button>
-        <div id="turnDisplay">Turn: <span id="currentTurn">0</span></div>
-      </div>
-    </header>
+  <h1>Economic Simulation</h1>
 
-    <div id="stats">
-      <div class="stat-box">
-        <h2>GDP</h2><p id="gdpValue">$0</p>
+  <div class="toolbar">
+    <button id="startBtn">Start Game</button>
+    <button id="advanceBtn">Advance Turn</button>
+    <div class="pill">Turn: <span id="turn">0</span></div>
+    <div class="pill">Mode: <span id="mode">ai</span></div>
+    <div class="status" id="wsStatus">WS: connecting…</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Key Indicators</h2>
+      <div class="kpis">
+        <div class="kpi policy"><div class="label">Fed Funds Rate</div><div class="value" id="ffrKPI">—</div></div>
+        <div class="kpi"><div class="label">GDP</div><div class="value" id="gdp">0</div></div>
+        <div class="kpi"><div class="label">Inflation</div><div class="value" id="inflation">0%</div></div>
+        <div class="kpi"><div class="label">Employment</div><div class="value" id="employment">0%</div></div>
+        <div class="kpi"><div class="label">Money Supply (M2)</div><div class="value" id="m2">0</div></div>
+        <div class="kpi"><div class="label">Velocity (V)</div><div class="value" id="velocity">0</div></div>
+        <div class="kpi"><div class="label">Price Level (P)</div><div class="value" id="price">1.00</div></div>
       </div>
-      <div class="stat-box">
-        <h2>Inflation</h2><p id="inflationValue">0%</p>
-      </div>
-      <div class="stat-box">
-        <h2>Employment</h2><p id="employmentValue">100%</p>
-      </div>
-      <div class="stat-box">
-        <h2>M2 Supply</h2><p id="m2Value">$0</p>
+      <div class="legend">New Money Created: <code id="newMoney">0</code></div>
+    </div>
+
+    <div class="card">
+      <h2>Central Bank</h2>
+      <div class="row"><div>Fed Funds Rate</div><div id="ffr">—</div></div>
+      <div class="row"><div>Taylor Rule (suggested)</div><div id="taylor">—</div></div>
+      <div class="row"><div>Discount Rate</div><div id="discount">—</div></div>
+      <div class="row"><div>Governance</div><div id="gov">ai</div></div>
+      <div class="row"><div>Explanation</div><div><span class="hist" id="cbExplain">—</span></div></div>
+      <div class="flex" style="margin-top:8px;">
+        <select id="modeSelect">
+          <option value="ai">AI</option>
+          <option value="democratic">Democratic</option>
+        </select>
+        <button class="secondary" id="setModeBtn">Set Mode</button>
       </div>
     </div>
 
-    <div class="main-grid">
-      <div>
-        <h2 style="text-align:center;">Economic Sectors</h2>
-        <div id="players"></div>
-      </div>
-      <div id="chartSection">
-        <h2>GDP & M2 Over Time</h2>
-        <canvas id="econChart"></canvas>
-      </div>
+    <div class="card">
+      <h2>Financial Sector</h2>
+      <div class="row"><div>Commercial Lending Rate</div><div id="comRate">—</div></div>
+      <div class="row"><div>Deposit Rate</div><div id="depRate">—</div></div>
+      <div class="row"><div>Lending Capacity</div><div id="lendCap">—</div></div>
+      <div class="row"><div>Deposits</div><div id="deposits">—</div></div>
+      <div class="row"><div>Loans Outstanding</div><div id="loans">—</div></div>
+      <div class="row"><div>New Money (this turn)</div><div id="newLoans">—</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Events</h2>
+      <ul id="events" class="events"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Players</h2>
+      <div id="players" class="players"></div>
+    </div>
+
+    <div class="card">
+      <h2>Histories</h2>
+      <div class="hist">GDP: <span id="gdpHist">[]</span></div>
+      <div class="hist">M2: <span id="m2Hist">[]</span></div>
+      <div class="hist">Inflation: <span id="inflHist">[]</span></div>
+      <div class="hist">Employment: <span id="empHist">[]</span></div>
+      <div class="hist">Velocity: <span id="velHist">[]</span></div>
+      <div class="hist">Rates: <span id="rateHist">[]</span></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    let lastTurn = -1, gdpHistory = [], m2History = [], turns = [];
+    const $ = (id) => document.getElementById(id);
+    const fmt = (n) => typeof n === "number" ? n.toLocaleString() : n;
+    const pct = (n) => (n * 100).toFixed(2) + "%";
+    const pct0 = (n) => (n).toFixed(2) + "%";
 
-    // Initialize Chart.js
-    let econChart;
-    function initChart() {
-      const ctx = document.getElementById('econChart').getContext('2d');
-      econChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [
-            { label: 'GDP', data: [], borderColor: 'rgba(255,255,255,0.8)', yAxisID: 'y' },
-            { label: 'M2 Supply', data: [], borderColor: 'rgba(255,200,200,0.8)', yAxisID: 'y2' }
-          ]
-        },
-        options: {
-          interaction: { mode: 'index', intersect: false },
-          scales: {
-            y: {
-              type: 'linear', position: 'left',
-              ticks: { color: '#fff' },
-              grid: { color: 'rgba(255,255,255,0.2)' }
-            },
-            y2: {
-              type: 'linear', position: 'right',
-              ticks: { color: '#fff' },
-              grid: { drawOnChartArea: false }
-            }
-          },
-          plugins: { legend: { labels: { color: '#fff' } } }
-        }
-      });
+    async function fetchJSON(url, opts) {
+      const res = await fetch(url, opts);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     }
 
-    // Render players
-    function updatePlayers(players) {
-      const container = document.getElementById('players');
-      container.innerHTML = '';
-      Object.entries(players).forEach(([id, p]) => {
-        const card = document.createElement('div');
-        card.className = 'player-card';
-        let inv = '';
-        Object.entries(p.inventory).forEach(([k, v]) => {
-          inv += `<span class="inventory-item">${k.replace(/_/g,' ')}:${v.toFixed(1)}</span>`;
-        });
-        card.innerHTML = `
-          <h3>${p.name}</h3>
-          <div>💰 $${p.money.toLocaleString()}</div>
-          <div>🏭 $${p.production_value.toLocaleString()}</div>
-          <div>${inv||'No inventory'}</div>`;
-        container.appendChild(card);
-      });
+    function renderState(state) {
+      if (!state) return;
+      $("turn").textContent = state.turn ?? 0;
+      $("mode").textContent = state.central_bank_mode ?? "ai";
+
+      const econ = state.economic_indicators || {};
+      $("gdp").textContent = fmt(econ.gdp ?? 0);
+      $("inflation").textContent = econ.inflation_rate != null ? pct0(econ.inflation_rate * 100 ? econ.inflation_rate : econ.inflation_rate) : "0%";
+      $("employment").textContent = econ.employment_rate != null ? (econ.employment_rate.toFixed(2) + "%") : "0%";
+      $("m2").textContent = fmt(econ.money_supply ?? 0);
+      $("velocity").textContent = (econ.money_velocity ?? 0).toFixed(3);
+      $("price").textContent = (econ.price_level ?? 1).toFixed(3);
+      $("newMoney").textContent = fmt(econ.new_money_created ?? 0);
+
+      // Central Bank & financial metrics from players
+      const players = state.players || {};
+      const cb = players.central_bank || {};
+      const fin = players.financial || {};
+      // -- KEY PANEL FED FUNDS RATE
+      $("ffrKPI").textContent = cb.fed_funds_rate != null ? pct(cb.fed_funds_rate) : "—";
+      // -- Central Bank panel
+      $("ffr").textContent = cb.fed_funds_rate != null ? pct(cb.fed_funds_rate) : "—";
+      $("taylor").textContent = cb.taylor_rule_rate != null ? pct(cb.taylor_rule_rate) : "—";
+      $("discount").textContent = cb.discount_rate != null ? pct(cb.discount_rate) : "—";
+      $("gov").textContent = cb.governance_mode || state.central_bank_mode || "ai";
+      $("cbExplain").textContent = cb.policy_explanation || "—";
+
+      $("comRate").textContent = fin.commercial_rate != null ? pct(fin.commercial_rate) : "—";
+      $("depRate").textContent = fin.deposit_rate != null ? pct(fin.deposit_rate) : "—";
+      $("lendCap").textContent = fin.lending_capacity != null ? fmt(fin.lending_capacity) : "—";
+      $("deposits").textContent = fin.deposits != null ? fmt(fin.deposits) : "—";
+      $("loans").textContent = fin.loans_outstanding != null ? fmt(fin.loans_outstanding) : "—";
+      $("newLoans").textContent = fin.new_loans_this_turn != null ? fmt(fin.new_loans_this_turn) : "—";
+
+      // Events
+      const ev = state.recent_events || [];
+      $("events").innerHTML = ev.map(e => `<li>${e}</li>`).join("") || "<li>No events</li>";
+
+      // Players
+      const order = ["central_bank","financial","government","raw_materials","manufacturing","services","consumer"];
+      const entries = Object.entries(players);
+      entries.sort((a,b)=> order.indexOf(a[0]) - order.indexOf(b));
+      $("players").innerHTML = entries.map(([name, p]) => {
+        const inv = p?.inventory ? JSON.stringify(p.inventory) : "{}";
+        return `<div class="kpi">
+          <div class="label">${name}</div>
+          <div class="value">${p?.name ?? name}</div>
+          <div class="hist">Money: ${fmt(p?.money ?? 0)}</div>
+          <div class="hist">Prod: ${fmt(p?.production_value ?? 0)}</div>
+          <div class="hist">Tech: ${(p?.technology_level ?? 1).toFixed(3)} | Credit: ${(p?.credit_rating ?? 1).toFixed(2)}</div>
+          <div class="hist">Loans: ${fmt(p?.loans_outstanding ?? 0)} | Borrowing demand: ${fmt(p?.borrowing_demand ?? 0)}</div>
+          <div class="hist">Inv: ${inv}</div>
+        </div>`;
+      }).join("");
+
+      // Histories
+      $("gdpHist").textContent = JSON.stringify(state.gdp_history || []);
+      $("m2Hist").textContent = JSON.stringify(state.m2_history || []);
+      $("inflHist").textContent = JSON.stringify(state.inflation_history || []);
+      $("empHist").textContent = JSON.stringify(state.employment_history || []);
+      $("velHist").textContent = JSON.stringify(state.velocity_history || []);
+      $("rateHist").textContent = JSON.stringify(state.interest_rate_history || []);
     }
 
-    // Update dashboard
-    function updateDashboard(data) {
-      document.getElementById('currentTurn').textContent = data.turn;
-      document.getElementById('gdpValue').textContent = '$' + data.gdp.toLocaleString();
-      document.getElementById('inflationValue').textContent = (data.inflation*100).toFixed(1) + '%';
-      document.getElementById('employmentValue').textContent = data.employment.toFixed(1) + '%';
-      document.getElementById('m2Value').textContent = '$' + data.money_supply.toLocaleString();
-
-      if (data.turn !== lastTurn) {
-        lastTurn = data.turn;
-        turns.push('T' + data.turn);
-        gdpHistory = data.gdp_history;
-        m2History = data.m2_history;
-        econChart.data.labels = turns;
-        econChart.data.datasets[0].data = gdpHistory;
-        econChart.data.datasets[1].data = m2History;
-        econChart.update();
+    async function refreshState() {
+      try {
+        const data = await fetchJSON("/api/game/state");
+        renderState(data);
+      } catch (e) {
+        console.error(e);
       }
-      updatePlayers(data.players);
     }
 
-    // Setup WebSocket
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    ws.onmessage = e => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'heartbeat') return;
-      updateDashboard(msg);
-    };
-    ws.onclose = () => setTimeout(() => location.reload(), 3000);
+    async function startGame() {
+      $("startBtn").disabled = true;
+      try {
+        await fetchJSON("/api/game/start", { method: "POST" });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        $("startBtn").disabled = false;
+      }
+    }
 
-    // Initial load
-    document.addEventListener('DOMContentLoaded', () => {
-      initChart();
-      fetch('/api/game/state')
-        .then(r => r.json())
-        .then(updateDashboard)
-        .catch(console.error);
-    });
+    async function advanceTurn() {
+      $("advanceBtn").disabled = true;
+      try {
+        await fetchJSON("/api/game/advance_turn", { method: "POST" });
+        setTimeout(refreshState, 300);
+      } catch (e) {
+        console.error(e);
+        await refreshState();
+      } finally {
+        $("advanceBtn").disabled = false;
+      }
+    }
 
-    // Button handlers
-    document.getElementById('startBtn').onclick = () =>
-      fetch('/api/game/start', { method: 'POST' });
-    document.getElementById('advanceBtn').onclick = () =>
-      fetch('/api/game/advance_turn', { method: 'POST' });
+    async function setMode() {
+      const mode = $("modeSelect").value;
+      try {
+        await fetchJSON("/api/central_bank/set_mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode })
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function openWS() {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${proto}://${location.host}/ws`);
+      ws.onopen = () => { $("wsStatus").textContent = "WS: connected"; $("wsStatus").className = "status ok"; };
+      ws.onclose = () => { $("wsStatus").textContent = "WS: disconnected (retrying…)"; $("wsStatus").className = "status warn"; setTimeout(openWS, 1500); };
+      ws.onerror = () => { $("wsStatus").textContent = "WS: error"; $("wsStatus").className = "status err"; };
+      ws.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          if (data && !data.type) renderState(data);
+        } catch (e) { /* ignore */ }
+      };
+      return ws;
+    }
+
+    $("startBtn").addEventListener("click", startGame);
+    $("advanceBtn").addEventListener("click", advanceTurn);
+    $("setModeBtn").addEventListener("click", setMode);
+
+    refreshState();
+    openWS();
   </script>
 </body>
 </html>
