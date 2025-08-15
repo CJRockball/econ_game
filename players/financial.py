@@ -16,8 +16,10 @@ class FinancialPlayer(BasePlayer):
         
     def produce(self):
         """Provide financial services - lending and deposit taking."""
-        # Collect interest on outstanding loans
+        # Collect interest & service fees then decide deposit vs lending
         interest_income = self.loans_outstanding * self.interest_rate
+        interest_expense = self.deposits * (self.interest_rate * 0.6)
+        net_interest = interest_income - interest_expense
         
         # Pay interest on deposits (lower rate)
         interest_expense = self.deposits * (self.interest_rate * 0.6)
@@ -29,7 +31,10 @@ class FinancialPlayer(BasePlayer):
         operating_cost = self.banking_capacity * 0.01  # 1% of capacity
         
         # Banking service fees
-        service_fees = min(self.labor * 10.0, self.banking_capacity * 0.02)
+        service_fees = min(self.labor * 5.0, self.banking_capacity * 0.01)
+        self.production_value = net_interest + service_fees
+        self.operating_costs = self.banking_capacity * 0.01
+        self.money += net_interest
         
         # Total revenue
         self.production_value = net_interest + service_fees
@@ -40,7 +45,8 @@ class FinancialPlayer(BasePlayer):
         
     def make_loan(self, amount: float) -> bool:
         """Make a loan if sufficient funds available."""
-        if self.money >= amount and (self.loans_outstanding + amount) <= self.banking_capacity:
+        # AI only lends if solvency ratio OK
+        if (self.loans_outstanding + amount) <= self.banking_capacity * 0.8 and self.money >= amount:
             self.money -= amount
             self.loans_outstanding += amount
             return True
@@ -48,5 +54,8 @@ class FinancialPlayer(BasePlayer):
         
     def accept_deposit(self, amount: float):
         """Accept customer deposit."""
-        self.money += amount
-        self.deposits += amount
+        # AI limits deposits to avoid hoarding
+        cap = self.banking_capacity * 0.5
+        accepted = min(amount, cap - self.deposits)
+        self.money += accepted
+        self.deposits += accepted

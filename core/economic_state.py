@@ -7,7 +7,7 @@ class EconomicState:
         self.gdp = 0.0
         self.inflation_rate = 0.0
         self.employment_rate = 95.0
-        self.money_supply = 1_000_000.0
+        self.money_supply = 100_000.0
         self.previous_gdp = 0.0
         self.turn_count = 0
         self.gdp_history = []
@@ -18,7 +18,7 @@ class EconomicState:
         self.gdp = 0.0
         self.inflation_rate = 0.0
         self.employment_rate = 95.0
-        self.money_supply = 1_000_000.0
+        self.money_supply = 100_000.0
         self.previous_gdp = 0.0
         self.turn_count = 0
         self.gdp_history.clear()
@@ -34,6 +34,13 @@ class EconomicState:
         total_loans = sum(getattr(p, 'loans_outstanding', 0) for p in players.values())
         m2_growth = total_loans * 0.01
         self.money_supply += m2_growth
+        # Penalty if M2 out of [50k, 200k]
+        if self.money_supply < 50_000:
+            # deflationary pressure
+            self.inflation_rate -= 0.01
+        elif self.money_supply > 200_000:
+            # inflationary pressure
+            self.inflation_rate += 0.01
         self.m2_history.append(self.money_supply)
 
         if self.previous_gdp > 0:
