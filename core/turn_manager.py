@@ -3,7 +3,7 @@ import random
 
 class TurnManager:
     """
-    Enhanced turn manager with correct phase order and cash flow tracking.
+    Enhanced turn manager with demand-responsive production and labor tracking.
     """
 
     def __init__(self):
@@ -18,12 +18,18 @@ class TurnManager:
         # Track transaction prices for inflation calculation
         self.transaction_prices = {}
         self.transaction_volumes = {}
+        
+        # NEW: Track realized sales and labor demand for adaptive behavior
+        self.realized_sales = {'raw_materials': 0.0, 'finished_goods': 0.0, 'services_units': 0.0}
+        self.labor_demand_log = 0.0
 
     def execute_turn(self, players: Dict[str, object]):
         """Execute all phases in sequence for one turn - SAFE EXECUTION."""
         # Reset transaction tracking each turn
         self.transaction_prices.clear()
         self.transaction_volumes.clear()
+        self.realized_sales = {'raw_materials': 0.0, 'finished_goods': 0.0, 'services_units': 0.0}
+        self.labor_demand_log = 0.0
         
         for phase in self.phases:
             try:
@@ -54,6 +60,11 @@ class TurnManager:
                 hasattr(player, 'calculate_borrowing_need')):
                 player.calculate_borrowing_need()
         
+        # NEW: Aggregate labor demand from all producers
+        for name, player in players.items():
+            if hasattr(player, 'get_intended_labor'):
+                self.labor_demand_log += max(0.0, player.get_intended_labor())
+        
         # Then produce
         for player in players.values():
             if hasattr(player, 'produce'):
@@ -65,6 +76,15 @@ class TurnManager:
         self.clear_raw_materials_market(players)
         self.clear_finished_goods_market(players)
         self.clear_services_market(players)
+        
+        # NEW: Write realized sales back to players for next-turn adaptation
+        rm = players.get('raw_materials')
+        mf = players.get('manufacturing')
+        sv = players.get('services')
+
+        if rm: setattr(rm, 'last_realized_sales', self.realized_sales['raw_materials'])
+        if mf: setattr(mf, 'last_realized_sales', self.realized_sales['finished_goods'])
+        if sv: setattr(sv, 'last_realized_sales', self.realized_sales['services_units'])
 
     def financial_market_phase(self, players: Dict[str, object]):
         """Financial markets AFTER goods markets - players can deposit surplus cash."""
@@ -113,6 +133,15 @@ class TurnManager:
             if (player_name not in ['financial', 'central_bank'] and 
                 hasattr(player, 'money') and 
                 getattr(player, 'money', 0) > 5000):  # Higher threshold after purchases
+                
+                # Special handling for consumer - even more conservative
+                if player_name == 'consumer':
+                    if player.money > 8000:
+                        excess = player.money - 8000
+                        deposit_amount = excess * 0.2
+                        if deposit_amount > 200:
+                            financial_player.accept_deposit(player, deposit_amount)
+                    continue
                 
                 # More conservative deposit strategy - keep more operating cash
                 excess_cash = player.money - 5000  # Increased buffer
@@ -187,6 +216,9 @@ class TurnManager:
                 manufacturing_player.money -= total_cost
                 manufacturing_player.inventory['raw_materials'] = manufacturing_player.inventory.get('raw_materials', 0) + demand
                 
+                # NEW: Track realized sales
+                self.realized_sales['raw_materials'] += float(demand)
+                
                 # Track transaction for inflation calculation
                 self.transaction_prices['raw_materials'] = price_per_unit
                 self.transaction_volumes['raw_materials'] = demand
@@ -227,9 +259,10 @@ class TurnManager:
             # Price considering technology and quality
             price_per_unit = base_price * supply_factor * (0.8 + 0.4 * tech_factor)
             
-            # INCREASED CONSUMER SPENDING: More aggressive purchasing
+            # Consumer demand affected by employment confidence
+            confidence = getattr(consumer_player, 'consumption_confidence', 1.0)
             max_affordable = consumer_player.money / price_per_unit
-            demand = min(max_affordable * 0.8, 30, supply)  # Increased from 0.6 to 0.8
+            demand = min(max_affordable * 0.8 * confidence, 30, supply)  # Confidence affects spending
             
             if demand > 0:
                 total_cost = demand * price_per_unit
@@ -242,6 +275,9 @@ class TurnManager:
                 
                 # Track actual spending for consumer smoothing
                 consumer_player.inventory['actual_purchases'] = consumer_player.inventory.get('actual_purchases', 0) + total_cost
+                
+                # NEW: Track realized sales
+                self.realized_sales['finished_goods'] += float(demand)
                 
                 # Track transaction for inflation calculation
                 self.transaction_prices['finished_goods'] = price_per_unit
@@ -277,13 +313,14 @@ class TurnManager:
                 
                 # Service demand varies by player type and productivity
                 if player_name == 'consumer':
-                    desired_units = min(player.money / services_player.current_price * 0.2, 12)  # Increased
+                    confidence = getattr(player, 'consumption_confidence', 1.0)
+                    desired_units = min(player.money / services_player.current_price * 0.2 * confidence, 12)
                 elif player_name == 'financial':
-                    desired_units = min(player.money / services_player.current_price * 0.1, 8)   # Increased
+                    desired_units = min(player.money / services_player.current_price * 0.1, 8)
                 else:
                     # Business services scale with production and technology
                     tech_factor = getattr(player, 'technology_level', 1.0)
-                    desired_units = min(player.money / services_player.current_price * 0.15 * tech_factor, 10)  # Increased
+                    desired_units = min(player.money / services_player.current_price * 0.15 * tech_factor, 10)
                 
                 if desired_units > 0:
                     service_cost = desired_units * services_player.current_price
@@ -300,6 +337,9 @@ class TurnManager:
         
         if hasattr(services_player, 'inventory'):
             services_player.inventory['services_provided'] = services_player.inventory.get('services_provided', 0) + total_service_revenue
+        
+        # NEW: Track realized sales units
+        self.realized_sales['services_units'] += float(total_service_units)
         
         # Track transaction for inflation calculation
         if total_service_units > 0:
@@ -400,3 +440,12 @@ class TurnManager:
     def get_transaction_volumes(self) -> Dict[str, float]:
         """Get current turn's transaction volumes."""
         return self.transaction_volumes.copy()
+    
+    # NEW: Helper methods for economic state
+    def get_realized_sales(self) -> Dict[str, float]:
+        """Get current turn's realized sales for demand tracking."""
+        return dict(self.realized_sales)
+
+    def get_total_labor_demand(self) -> float:
+        """Get total labor demand for employment calculation."""
+        return float(self.labor_demand_log)

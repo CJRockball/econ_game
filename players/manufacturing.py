@@ -2,7 +2,7 @@ from core.base_player import BasePlayer
 
 class ManufacturingPlayer(BasePlayer):
     """
-    Enhanced Manufacturing Player with persistent pricing and improved production.
+    Enhanced Manufacturing Player with demand-adaptive production and labor sensitivity.
     """
     
     def __init__(self, name: str):
@@ -20,6 +20,10 @@ class ManufacturingPlayer(BasePlayer):
         self.automation_level = 1.0  # Automation reduces labor needs
         self.supply_chain_efficiency = 1.0  # Raw material usage efficiency
         
+        # NEW: Demand-adaptive production
+        self.last_realized_sales = 0.0
+        self.desired_output = 40.0  # Target production level
+        
     def reset(self):
         """Reset to enhanced initial state."""
         super().reset()
@@ -27,6 +31,17 @@ class ManufacturingPlayer(BasePlayer):
         self.quality_level = 1.0
         self.automation_level = 1.0
         self.supply_chain_efficiency = 1.0
+        self.last_realized_sales = 0.0
+        self.desired_output = 40.0
+        
+    def get_intended_labor(self) -> float:
+        """NEW: Calculate intended labor demand for employment tracking."""
+        # Reverse engineer labor needed from desired output
+        effective_ratio = self.raw_material_ratio / max(1e-6, (self.supply_chain_efficiency * self.technology_level))
+        labor_efficiency = max(1e-6, self.automation_level * self.productivity_factor)
+        # labor_constraint = labor * 0.6 * labor_efficiency, so needed_labor = desired_output / (0.6 * efficiency)
+        needed_labor = self.desired_output / max(1e-6, (0.6 * labor_efficiency))
+        return min(self.labor, needed_labor)
         
     def invest_in_automation(self, amount: float):
         """Invest in automation technology."""
@@ -44,7 +59,13 @@ class ManufacturingPlayer(BasePlayer):
             self.quality_level += quality_gain
 
     def produce(self):
-        """Enhanced manufacturing with quality and efficiency considerations."""
+        """Enhanced manufacturing with demand-adaptive production."""
+        # NEW: Adapt desired output toward last realized sales
+        capacity_anchor = self.production_capacity * self.technology_level
+        target = 0.6 * max(0.0, self.last_realized_sales) + 0.4 * capacity_anchor
+        # Smoothly move desired_output toward target
+        self.desired_output = 0.7 * self.desired_output + 0.3 * target
+        
         # Check available raw materials
         available_raw = self.inventory.get('raw_materials', 0)
         
@@ -63,7 +84,8 @@ class ManufacturingPlayer(BasePlayer):
         capacity_constraint = self.production_capacity * self.technology_level
         labor_constraint = self.labor * 0.6 * labor_efficiency
         
-        max_production = min(raw_material_constraint, capacity_constraint, labor_constraint)
+        # NEW: Cap by desired output
+        max_production = min(raw_material_constraint, capacity_constraint, labor_constraint, self.desired_output)
         
         # Variable production costs
         base_cost = self.production_cost / self.automation_level  # Automation reduces costs
@@ -110,6 +132,21 @@ class ManufacturingPlayer(BasePlayer):
             else:
                 self.production_value = 0.0
                 self.operating_costs = 0.0
+
+    def update_after_market(self):
+        """NEW: Adjust labor based on profitability."""
+        super().update_after_market()
+        
+        # Calculate profit margin
+        margin = 0.0
+        if self.production_value > 0:
+            margin = (self.production_value - self.operating_costs) / max(1e-6, self.production_value)
+        
+        # Adjust labor based on profitability
+        if margin < -0.05:  # Losing money - reduce labor 10%
+            self.labor = max(20.0, self.labor * 0.9)
+        elif margin > 0.2:  # Strong profits >20% - increase labor 5%
+            self.labor = min(200.0, self.labor * 1.05)
     
     def get_status(self):
         """Enhanced status with manufacturing metrics."""
@@ -119,6 +156,8 @@ class ManufacturingPlayer(BasePlayer):
             'automation_level': round(self.automation_level, 3),
             'supply_chain_efficiency': round(self.supply_chain_efficiency, 3),
             'manufacturing_efficiency': round(self.automation_level * self.technology_level, 3),
-            'current_price': round(getattr(self, 'current_price', 18.0), 2)
+            'current_price': round(getattr(self, 'current_price', 18.0), 2),
+            'last_realized_sales': round(self.last_realized_sales, 1),
+            'desired_output': round(self.desired_output, 1)
         })
         return status

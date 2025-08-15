@@ -3,8 +3,7 @@ import random
 
 class RawMaterialsPlayer(BasePlayer):
     """
-    Enhanced Raw Materials Player with dynamic pricing, technology investment,
-    and resource management.
+    Enhanced Raw Materials Player with demand-adaptive production and labor sensitivity.
     """
     
     def __init__(self, name: str):
@@ -26,6 +25,10 @@ class RawMaterialsPlayer(BasePlayer):
         self.extraction_efficiency = 1.0
         self.environmental_compliance = 1.0
         
+        # NEW: Demand-adaptive production
+        self.last_realized_sales = 0.0
+        self.desired_output = 50.0  # Target extraction level
+        
     def reset(self):
         """Reset to enhanced initial state."""
         super().reset()
@@ -36,6 +39,17 @@ class RawMaterialsPlayer(BasePlayer):
         self.exploration_budget = 0.0
         self.extraction_efficiency = 1.0
         self.environmental_compliance = 1.0
+        self.last_realized_sales = 0.0
+        self.desired_output = 50.0
+        
+    def get_intended_labor(self) -> float:
+        """NEW: Calculate intended labor demand for employment tracking."""
+        # Reverse engineer labor needed from desired output
+        tech_eff = max(1e-6, self.technology_level * self.extraction_efficiency)
+        depletion_factor = max(0.5, 1.0 - (10000.0 - self.resource_reserves) * 0.00005)
+        # labor_constraint = labor * 0.8, so needed_labor = desired_output / 0.8
+        needed_labor = self.desired_output / 0.8
+        return min(self.labor, needed_labor)
         
     def invest_in_exploration(self, amount: float):
         """Invest in finding new resource reserves."""
@@ -55,7 +69,13 @@ class RawMaterialsPlayer(BasePlayer):
             self.productivity_factor = self.extraction_efficiency * self.technology_level
 
     def produce(self):
-        """Enhanced resource extraction with technology and depletion."""
+        """Enhanced resource extraction with demand-adaptive production."""
+        # NEW: Adapt desired output toward last realized sales
+        capacity_anchor = self.extraction_capacity * self.technology_level * self.extraction_efficiency
+        target = 0.6 * max(0.0, self.last_realized_sales) + 0.4 * capacity_anchor
+        # Smoothly move desired_output toward target
+        self.desired_output = 0.7 * self.desired_output + 0.3 * target
+        
         # Production affected by technology, efficiency, and depletion
         tech_efficiency = self.technology_level * self.extraction_efficiency
         depletion_factor = max(0.5, 1.0 - (10000.0 - self.resource_reserves) * 0.00005)
@@ -64,11 +84,12 @@ class RawMaterialsPlayer(BasePlayer):
         effective_capacity = (self.extraction_capacity * tech_efficiency * 
                             depletion_factor * self.productivity_factor)
         
-        # Production limited by labor, capacity, and reserves
+        # Production limited by labor, capacity, reserves, and desired output
         max_production = min(
             self.labor * 0.8,
             effective_capacity,
-            self.resource_reserves * 0.1  # Can't extract more than 10% of reserves per turn
+            self.resource_reserves * 0.1,  # Can't extract more than 10% of reserves per turn
+            self.desired_output  # NEW: Cap by desired output
         )
         
         # Variable extraction cost based on technology and depletion
@@ -119,6 +140,21 @@ class RawMaterialsPlayer(BasePlayer):
             else:
                 self.production_value = 0.0
                 self.operating_costs = 0.0
+
+    def update_after_market(self):
+        """NEW: Adjust labor based on profitability."""
+        super().update_after_market()
+        
+        # Calculate profit margin
+        margin = 0.0
+        if self.production_value > 0:
+            margin = (self.production_value - self.operating_costs) / max(1e-6, self.production_value)
+        
+        # Adjust labor based on profitability
+        if margin < -0.05:  # Losing money - reduce labor 10%
+            self.labor = max(20.0, self.labor * 0.9)
+        elif margin > 0.2:  # Strong profits >20% - increase labor 5%
+            self.labor = min(200.0, self.labor * 1.05)
     
     def get_status(self):
         """Enhanced status with resource management data."""
@@ -130,6 +166,8 @@ class RawMaterialsPlayer(BasePlayer):
             'exploration_budget': round(self.exploration_budget, 2),
             'extraction_efficiency': round(self.extraction_efficiency, 3),
             'overall_efficiency': round(self.technology_level * self.extraction_efficiency, 3),
-            'current_price': round(getattr(self, 'current_price', 8.0), 2)
+            'current_price': round(getattr(self, 'current_price', 8.0), 2),
+            'last_realized_sales': round(self.last_realized_sales, 1),
+            'desired_output': round(self.desired_output, 1)
         })
         return status

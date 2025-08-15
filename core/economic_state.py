@@ -3,7 +3,7 @@ from typing import Dict
 
 class EconomicState:
     """
-    Enhanced Economic State with transaction-based inflation calculation.
+    Enhanced Economic State with labor-demand based employment calculation.
     """
     
     def __init__(self):
@@ -199,8 +199,38 @@ class EconomicState:
         self.previous_gdp = self.gdp
         self.gdp = self.consumption + self.investment + self.government_spending + self.net_exports
     
-    def update_employment(self, players: Dict):
-        """Update employment rate based on economic activity and productivity."""
+    def update_employment_labor_demand(self, turn_manager):
+        """NEW: Update employment based on actual labor demand from firms."""
+        if turn_manager and hasattr(turn_manager, 'get_total_labor_demand'):
+            # Calculate total labor supply from hiring sectors
+            total_labor_supply = 0.0
+            hiring_sectors = ['raw_materials', 'manufacturing', 'services', 'financial', 'government']
+            
+            # Sum up labor from all hiring players
+            for name, player in self.players_cache.items():
+                if name in hiring_sectors and hasattr(player, 'labor'):
+                    total_labor_supply += getattr(player, 'labor', 0.0)
+            
+            # Get actual labor demand from turn manager
+            total_labor_demand = max(0.0, turn_manager.get_total_labor_demand())
+            
+            # Employment rate = min(demand / supply, 1) mapped to 75-98 range
+            employment_ratio = 1.0
+            if total_labor_supply > 0:
+                employment_ratio = min(1.0, total_labor_demand / total_labor_supply)
+            
+            target_employment = 75.0 + employment_ratio * (98.0 - 75.0)
+            
+            # Smooth employment adjustment
+            adjustment_speed = 0.3
+            self.employment_rate = (self.employment_rate * (1 - adjustment_speed) + 
+                                  target_employment * adjustment_speed)
+        else:
+            # Fallback to original GDP-based method
+            self.update_employment_gdp_fallback()
+    
+    def update_employment_gdp_fallback(self):
+        """Fallback GDP-based employment calculation."""
         # Employment depends on GDP growth and productivity
         if self.previous_gdp > 0:
             gdp_growth = (self.gdp - self.previous_gdp) / self.previous_gdp
@@ -210,7 +240,7 @@ class EconomicState:
         # Average productivity across sectors - SAFE ACCESS
         total_productivity = 0.0
         count = 0
-        for player in players.values():
+        for player in self.players_cache.values():
             productivity = getattr(player, 'productivity_factor', 1.0)
             total_productivity += productivity
             count += 1
@@ -233,8 +263,11 @@ class EconomicState:
         self.employment_rate = max(75.0, min(98.0, self.employment_rate))
     
     def update(self, players: Dict, turn_manager=None):
-        """Comprehensive economic state update with transaction-based inflation."""
+        """Comprehensive economic state update with labor-demand based employment."""
         self.turn_count += 1
+        
+        # Cache players for employment calculation
+        self.players_cache = players
         
         # Update GDP components
         self.update_gdp_components(players)
@@ -252,8 +285,8 @@ class EconomicState:
             # Fallback to MV = PY approach
             self.calculate_inflation_mv_py_fallback()
         
-        # Update employment
-        self.update_employment(players)
+        # NEW: Update employment using labor demand
+        self.update_employment_labor_demand(turn_manager)
         
         # Store histories - ALL these arrays are guaranteed to exist
         self.gdp_history.append(self.gdp)

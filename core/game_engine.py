@@ -16,7 +16,7 @@ except ImportError as e:
 
 class GameEngine:
     """
-    Enhanced game engine with transaction-based inflation tracking.
+    Enhanced game engine with employment-responsive consumption feedback.
     """
     
     def __init__(self):
@@ -130,7 +130,7 @@ class GameEngine:
             financial_player.reserves = 10000.0
         
     def advance_turn(self):
-        """Execute one complete turn with transaction-based economic tracking."""
+        """Execute one complete turn with employment-responsive consumption."""
         # Update central bank with current economic conditions
         central_bank = self.players.get('central_bank')
         if (central_bank and 
@@ -155,12 +155,20 @@ class GameEngine:
         # Update economic state with turn manager for transaction prices
         self.economic_state.update(self.players, self.turn_manager)
         
+        # NEW: Set consumption confidence on consumer based on employment
+        consumer = self.players.get('consumer')
+        if consumer:
+            employment = self.economic_state.employment_rate
+            # Map 75-98 employment to 0.7-1.1 confidence
+            confidence = 0.7 + (employment - 75.0) / (98.0 - 75.0) * (1.1 - 0.7)
+            consumer.consumption_confidence = max(0.6, min(1.2, confidence))
+        
         # Increment turn counter
         self.current_turn += 1
         
         # Log significant economic events
         self._log_economic_events()
-    
+        
     def _log_economic_events(self):
         """Log significant economic events for educational purposes."""
         events = []
@@ -184,6 +192,16 @@ class GameEngine:
                     direction = 'expanded' if money_growth > 0 else 'contracted'
                     events.append(f"Money supply {direction} by {money_growth:.1%}")
         
+        # Check for significant employment changes
+        if len(self.economic_state.employment_history) > 1:
+            current_employment = self.economic_state.employment_rate
+            previous_employment = self.economic_state.employment_history[-2]
+            employment_change = current_employment - previous_employment
+            
+            if abs(employment_change) > 2.0:  # 2 percentage point change
+                direction = 'rose' if employment_change > 0 else 'fell'
+                events.append(f"Employment {direction} to {current_employment:.1f}%")
+        
         # Check for significant price level changes
         if len(self.economic_state.price_history) > 1:
             current_prices = self.economic_state.price_level
@@ -197,7 +215,7 @@ class GameEngine:
         # Store events for UI display (keep last 5 events)
         self.recent_events.extend(events)
         self.recent_events = self.recent_events[-5:]
-    
+        
     def get_state(self) -> Dict:
         """Get comprehensive game state for API/UI - SAFE ACCESS."""
         try:
