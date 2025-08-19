@@ -8,7 +8,7 @@ class ConsumerPlayer(BasePlayer):
     def __init__(self, name: str):
         super().__init__(name)
         self.income_rate = 50.0  # Income per labor unit
-        self.consumption_rate = 0.7  # Base fraction of income consumed
+        self.consumption_rate = 0.85  # INCREASED: Basic necessities require 85% of income
         self.savings = 0.0  # Accumulated savings
         self.consumption_confidence = 1.0  # Employment-based confidence factor
         
@@ -70,12 +70,23 @@ class ConsumerPlayer(BasePlayer):
     def get_status(self) -> dict:
         """Return enhanced consumer status including confidence."""
         status = super().get_status()
+        
+        # FIXED: Format inventory with 0 decimal places
+        formatted_inventory = {}
+        for item, amount in status.get('inventory', {}).items():
+            if isinstance(amount, (int, float)):
+                formatted_inventory[item] = int(amount)  # Round to 0 decimal places
+            else:
+                formatted_inventory[item] = amount
+        
         status.update({
+            'inventory': formatted_inventory,  # Override with formatted version
             'savings': round(self.savings, 2),
             'consumption_rate': self.consumption_rate,
             'consumption_confidence': round(self.consumption_confidence, 3),
             'effective_consumption_rate': round(self.consumption_rate * self.consumption_confidence, 3),
             'last_turn_spending': round(self.inventory.get('spent_last_turn', 0), 2),
-            'planned_consumption': round(self.production_value, 2)
+            'planned_consumption': round(self.production_value, 2),
+            'current_unit_wage': round(self.income_rate, 2)  # NEW: Show unit wage
         })
         return status

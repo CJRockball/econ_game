@@ -1,255 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Economic Simulation Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background: #0f172a; color: #e2e8f0; }
-    h1, h2, h3 { margin: 8px 0; }
-    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-    button { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
-    button.secondary { background: #334155; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
-    .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
-    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-    .kpi { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 10px; }
-    .kpi .label { color: #94a3b8; font-size: 13px; }
-    .kpi .value { color: #e2e8f0; font-size: 20px; font-weight: 600; }
-    .kpi.policy { border: 2px solid #2563eb; }
-    .players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #1f2937; }
-    .row:last-child { border-bottom: none; }
-    code { background: #0b1220; color: #a5b4fc; padding: 2px 6px; border-radius: 6px; }
-    .status { font-size: 12px; color: #94a3b8; }
-    .ok { color: #22c55e; }
-    .warn { color: #f59e0b; }
-    .err { color: #ef4444; }
-    .events li { margin-bottom: 6px; }
-    .hist { font-size: 12px; color: #cbd5e1; }
-    .legend { font-size: 12px; color: #94a3b8; }
-    .flex { display: flex; gap: 8px; align-items: center; }
-    input, select { background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; }
-    .pill { border: 1px solid #1f2937; background: #0b1220; padding: 2px 8px; border-radius: 999px; font-size: 12px; color: #cbd5e1; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Economic Simulation Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <h1>Economic Simulation</h1>
+    <div class="container">
+        <header>
+            <h1>Economic Simulation</h1>
+        </header>
+        
+        <div class="status-bar">
+            <div class="status-item">Turn: <span id="current-turn">0</span></div>
+            <div class="status-item">Mode: <span id="bank-mode">ai</span></div>
+            <div class="status-item">WS: <span id="ws-status">connecting…</span></div>
+        </div>
+        
+        <div class="dashboard-grid">
+            <div class="panel">
+                <h2>Key Indicators</h2>
+                <div class="indicators-grid">
+                    <div class="indicator">
+                        <label>Fed Funds Rate</label>
+                        <span id="fed-funds-rate">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>GDP</label>
+                        <span id="gdp">0</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Inflation</label>
+                        <span id="inflation">0%</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Employment</label>
+                        <span id="employment">0%</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Money Supply (M2)</label>
+                        <span id="money-supply">0</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Velocity (V)</label>
+                        <span id="velocity">0</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Price Level (P)</label>
+                        <span id="price-level">1.00</span>
+                    </div>
+                </div>
+                
+                <div class="sub-indicators">
+                    New Money Created: <code id="new-money">0</code>
+                </div>
+            </div>
 
-  <div class="toolbar">
-    <button id="startBtn">Start Game</button>
-    <button id="advanceBtn">Advance Turn</button>
-    <div class="pill">Turn: <span id="turn">0</span></div>
-    <div class="pill">Mode: <span id="mode">ai</span></div>
-    <div class="status" id="wsStatus">WS: connecting…</div>
-  </div>
+            <div class="panel">
+                <h2>Central Bank</h2>
+                <div class="indicators-grid">
+                    <div class="indicator">
+                        <label>Fed Funds Rate</label>
+                        <span id="cb-fed-funds">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Taylor Rule (suggested)</label>
+                        <span id="taylor-rule">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Discount Rate</label>
+                        <span id="discount-rate">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Governance</label>
+                        <span id="governance">ai</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Explanation</label>
+                        <span id="policy-explanation">—</span>
+                    </div>
+                </div>
+                
+                <div class="mode-buttons">
+                    <button id="ai-mode">AI</button>
+                    <button id="democratic-mode">Democratic</button>
+                </div>
+                
+                <div id="voting-panel" class="voting-panel" style="display: none;">
+                    <!-- Democratic voting interface will be populated here -->
+                </div>
+            </div>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Key Indicators</h2>
-      <div class="kpis">
-        <div class="kpi policy"><div class="label">Fed Funds Rate</div><div class="value" id="ffrKPI">—</div></div>
-        <div class="kpi"><div class="label">GDP</div><div class="value" id="gdp">0</div></div>
-        <div class="kpi"><div class="label">Inflation</div><div class="value" id="inflation">0%</div></div>
-        <div class="kpi"><div class="label">Employment</div><div class="value" id="employment">0%</div></div>
-        <div class="kpi"><div class="label">Money Supply (M2)</div><div class="value" id="m2">0</div></div>
-        <div class="kpi"><div class="label">Velocity (V)</div><div class="value" id="velocity">0</div></div>
-        <div class="kpi"><div class="label">Price Level (P)</div><div class="value" id="price">1.00</div></div>
-      </div>
-      <div class="legend">New Money Created: <code id="newMoney">0</code></div>
+            <div class="panel">
+                <h2>Financial Sector</h2>
+                <div class="indicators-grid">
+                    <div class="indicator">
+                        <label>Commercial Lending Rate</label>
+                        <span id="commercial-rate">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Deposit Rate</label>
+                        <span id="deposit-rate">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Lending Capacity</label>
+                        <span id="lending-capacity">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Deposits</label>
+                        <span id="deposits">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Loans Outstanding</label>
+                        <span id="loans-outstanding">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>New Money (this turn)</label>
+                        <span id="new-loans">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Labor Market & Government</h2>
+                <div class="indicators-grid">
+                    <div class="indicator">
+                        <label>Current Unit Wage</label>
+                        <span id="unit-wage">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Employment Confidence</label>
+                        <span id="employment-confidence">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Government Tax Rate</label>
+                        <span id="tax-rate">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Tax Revenue Collected</label>
+                        <span id="tax-revenue">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Government Spending</label>
+                        <span id="gov-spending">—</span>
+                    </div>
+                    <div class="indicator">
+                        <label>Public Debt</label>
+                        <span id="public-debt">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Recent Events</h2>
+                <div id="events-list" class="events-list">
+                    <!-- Events will be populated here -->
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Players</h2>
+                <div id="players-grid" class="players-grid">
+                    <!-- Player cards will be populated here -->
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Histories</h2>
+                <div class="histories">
+                    <div>GDP: <span id="gdp-history">[]</span></div>
+                    <div>M2: <span id="m2-history">[]</span></div>
+                    <div>Inflation: <span id="inflation-history">[]</span></div>
+                    <div>Employment: <span id="employment-history">[]</span></div>
+                    <div>Velocity: <span id="velocity-history">[]</span></div>
+                    <div>Rates: <span id="rates-history">[]</span></div>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <div class="card">
-      <h2>Central Bank</h2>
-      <div class="row"><div>Fed Funds Rate</div><div id="ffr">—</div></div>
-      <div class="row"><div>Taylor Rule (suggested)</div><div id="taylor">—</div></div>
-      <div class="row"><div>Discount Rate</div><div id="discount">—</div></div>
-      <div class="row"><div>Governance</div><div id="gov">ai</div></div>
-      <div class="row"><div>Explanation</div><div><span class="hist" id="cbExplain">—</span></div></div>
-      <div class="flex" style="margin-top:8px;">
-        <select id="modeSelect">
-          <option value="ai">AI</option>
-          <option value="democratic">Democratic</option>
-        </select>
-        <button class="secondary" id="setModeBtn">Set Mode</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Financial Sector</h2>
-      <div class="row"><div>Commercial Lending Rate</div><div id="comRate">—</div></div>
-      <div class="row"><div>Deposit Rate</div><div id="depRate">—</div></div>
-      <div class="row"><div>Lending Capacity</div><div id="lendCap">—</div></div>
-      <div class="row"><div>Deposits</div><div id="deposits">—</div></div>
-      <div class="row"><div>Loans Outstanding</div><div id="loans">—</div></div>
-      <div class="row"><div>New Money (this turn)</div><div id="newLoans">—</div></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent Events</h2>
-      <ul id="events" class="events"></ul>
-    </div>
-
-    <div class="card">
-      <h2>Players</h2>
-      <div id="players" class="players"></div>
-    </div>
-
-    <div class="card">
-      <h2>Histories</h2>
-      <div class="hist">GDP: <span id="gdpHist">[]</span></div>
-      <div class="hist">M2: <span id="m2Hist">[]</span></div>
-      <div class="hist">Inflation: <span id="inflHist">[]</span></div>
-      <div class="hist">Employment: <span id="empHist">[]</span></div>
-      <div class="hist">Velocity: <span id="velHist">[]</span></div>
-      <div class="hist">Rates: <span id="rateHist">[]</span></div>
-    </div>
-  </div>
-
-  <script>
-    const $ = (id) => document.getElementById(id);
-    const fmt = (n) => typeof n === "number" ? n.toLocaleString() : n;
-    const pct = (n) => (n * 100).toFixed(2) + "%";
-    const pct0 = (n) => (n).toFixed(2) + "%";
-
-    async function fetchJSON(url, opts) {
-      const res = await fetch(url, opts);
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }
-
-    function renderState(state) {
-      if (!state) return;
-      $("turn").textContent = state.turn ?? 0;
-      $("mode").textContent = state.central_bank_mode ?? "ai";
-
-      const econ = state.economic_indicators || {};
-      $("gdp").textContent = fmt(econ.gdp ?? 0);
-      $("inflation").textContent = econ.inflation_rate != null ? pct0(econ.inflation_rate * 100 ? econ.inflation_rate : econ.inflation_rate) : "0%";
-      $("employment").textContent = econ.employment_rate != null ? (econ.employment_rate.toFixed(2) + "%") : "0%";
-      $("m2").textContent = fmt(econ.money_supply ?? 0);
-      $("velocity").textContent = (econ.money_velocity ?? 0).toFixed(3);
-      $("price").textContent = (econ.price_level ?? 1).toFixed(3);
-      $("newMoney").textContent = fmt(econ.new_money_created ?? 0);
-
-      // Central Bank & financial metrics from players
-      const players = state.players || {};
-      const cb = players.central_bank || {};
-      const fin = players.financial || {};
-      // -- KEY PANEL FED FUNDS RATE
-      $("ffrKPI").textContent = cb.fed_funds_rate != null ? pct(cb.fed_funds_rate) : "—";
-      // -- Central Bank panel
-      $("ffr").textContent = cb.fed_funds_rate != null ? pct(cb.fed_funds_rate) : "—";
-      $("taylor").textContent = cb.taylor_rule_rate != null ? pct(cb.taylor_rule_rate) : "—";
-      $("discount").textContent = cb.discount_rate != null ? pct(cb.discount_rate) : "—";
-      $("gov").textContent = cb.governance_mode || state.central_bank_mode || "ai";
-      $("cbExplain").textContent = cb.policy_explanation || "—";
-
-      $("comRate").textContent = fin.commercial_rate != null ? pct(fin.commercial_rate) : "—";
-      $("depRate").textContent = fin.deposit_rate != null ? pct(fin.deposit_rate) : "—";
-      $("lendCap").textContent = fin.lending_capacity != null ? fmt(fin.lending_capacity) : "—";
-      $("deposits").textContent = fin.deposits != null ? fmt(fin.deposits) : "—";
-      $("loans").textContent = fin.loans_outstanding != null ? fmt(fin.loans_outstanding) : "—";
-      $("newLoans").textContent = fin.new_loans_this_turn != null ? fmt(fin.new_loans_this_turn) : "—";
-
-      // Events
-      const ev = state.recent_events || [];
-      $("events").innerHTML = ev.map(e => `<li>${e}</li>`).join("") || "<li>No events</li>";
-
-      // Players
-      const order = ["central_bank","financial","government","raw_materials","manufacturing","services","consumer"];
-      const entries = Object.entries(players);
-      entries.sort((a,b)=> order.indexOf(a[0]) - order.indexOf(b));
-      $("players").innerHTML = entries.map(([name, p]) => {
-        const inv = p?.inventory ? JSON.stringify(p.inventory) : "{}";
-        return `<div class="kpi">
-          <div class="label">${name}</div>
-          <div class="value">${p?.name ?? name}</div>
-          <div class="hist">Money: ${fmt(p?.money ?? 0)}</div>
-          <div class="hist">Prod: ${fmt(p?.production_value ?? 0)}</div>
-          <div class="hist">Tech: ${(p?.technology_level ?? 1).toFixed(3)} | Credit: ${(p?.credit_rating ?? 1).toFixed(2)}</div>
-          <div class="hist">Loans: ${fmt(p?.loans_outstanding ?? 0)} | Borrowing demand: ${fmt(p?.borrowing_demand ?? 0)}</div>
-          <div class="hist">Inv: ${inv}</div>
-        </div>`;
-      }).join("");
-
-      // Histories
-      $("gdpHist").textContent = JSON.stringify(state.gdp_history || []);
-      $("m2Hist").textContent = JSON.stringify(state.m2_history || []);
-      $("inflHist").textContent = JSON.stringify(state.inflation_history || []);
-      $("empHist").textContent = JSON.stringify(state.employment_history || []);
-      $("velHist").textContent = JSON.stringify(state.velocity_history || []);
-      $("rateHist").textContent = JSON.stringify(state.interest_rate_history || []);
-    }
-
-    async function refreshState() {
-      try {
-        const data = await fetchJSON("/api/game/state");
-        renderState(data);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function startGame() {
-      $("startBtn").disabled = true;
-      try {
-        await fetchJSON("/api/game/start", { method: "POST" });
-      } catch (e) {
-        console.error(e);
-      } finally {
-        $("startBtn").disabled = false;
-      }
-    }
-
-    async function advanceTurn() {
-      $("advanceBtn").disabled = true;
-      try {
-        await fetchJSON("/api/game/advance_turn", { method: "POST" });
-        setTimeout(refreshState, 300);
-      } catch (e) {
-        console.error(e);
-        await refreshState();
-      } finally {
-        $("advanceBtn").disabled = false;
-      }
-    }
-
-    async function setMode() {
-      const mode = $("modeSelect").value;
-      try {
-        await fetchJSON("/api/central_bank/set_mode", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode })
-        });
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    function openWS() {
-      const proto = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${proto}://${location.host}/ws`);
-      ws.onopen = () => { $("wsStatus").textContent = "WS: connected"; $("wsStatus").className = "status ok"; };
-      ws.onclose = () => { $("wsStatus").textContent = "WS: disconnected (retrying…)"; $("wsStatus").className = "status warn"; setTimeout(openWS, 1500); };
-      ws.onerror = () => { $("wsStatus").textContent = "WS: error"; $("wsStatus").className = "status err"; };
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          if (data && !data.type) renderState(data);
-        } catch (e) { /* ignore */ }
-      };
-      return ws;
-    }
-
-    $("startBtn").addEventListener("click", startGame);
-    $("advanceBtn").addEventListener("click", advanceTurn);
-    $("setModeBtn").addEventListener("click", setMode);
-
-    refreshState();
-    openWS();
-  </script>
+    
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

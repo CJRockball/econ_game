@@ -1,255 +1,227 @@
-// web/static/js/dashboard.js - REPLACE ENTIRELY
-let gdpData = [];
-let inflationData = [];
-let lastTurn = -1;
-let gdpChart;
-let ws;
-
-// Initialize WebSocket connection
-function initWebSocket() {
-    ws = new WebSocket(`ws://${window.location.host}/ws`);
-
-    ws.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+class EconomicDashboard {
+    constructor() {
+        this.socket = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 1000; // Start with 1 second
         
-        // Ignore heartbeat messages
-        if (data.type === 'heartbeat') return;
-        
-        updateDashboard(data);
-    };
-
-    ws.onclose = function() {
-        console.log("WebSocket connection closed. Attempting to reconnect...");
-        setTimeout(() => {
-            initWebSocket();
-        }, 3000);
-    };
-
-    ws.onerror = function(error) {
-        console.log("WebSocket error:", error);
-    };
-}
-
-function updateDashboard(gameState) {
-    // Only update chart when turn actually changes
-    if (gameState.turn !== lastTurn) {
-        gdpData.push(gameState.gdp);
-        inflationData.push(gameState.inflation * 100);
-        lastTurn = gameState.turn;
-        updateChart();
+        this.initializeWebSocket();
+        this.setupEventListeners();
     }
-
-    // Always update current values with animations
-    animateValue('current-turn', gameState.turn);
-    animateValue('gdp', '$' + gameState.gdp.toLocaleString());
-    animateValue('inflation', (gameState.inflation * 100).toFixed(1) + '%');
-    animateValue('employment', gameState.employment.toFixed(1) + '%');
     
-    // Update player panels with enhanced data
-    updatePlayerPanels(gameState.players);
-}
-
-function animateValue(elementId, newValue) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.style.transform = 'scale(1.05)';
-        element.textContent = newValue;
-        setTimeout(() => {
-            element.style.transform = 'scale(1)';
-        }, 200);
-    }
-}
-
-function updatePlayerPanels(players) {
-    for (const [playerName, playerData] of Object.entries(players)) {
-        const panel = document.getElementById(`player-${playerName}`);
-        if (panel) {
-            // Update money with color coding
-            const moneyElement = panel.querySelector('.money');
-            const money = playerData.money;
-            moneyElement.textContent = '$' + money.toLocaleString();
-            moneyElement.style.color = money > 5000 ? '#4CAF50' : money > 1000 ? '#FF9800' : '#f44336';
+    initializeWebSocket() {
+        try {
+            this.socket = new WebSocket(`ws://${window.location.host}/ws`);
             
-            // Update production with trend indicator
-            const productionElement = panel.querySelector('.production');
-            productionElement.textContent = '$' + playerData.production_value.toLocaleString();
+            this.socket.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('ws-status').textContent = 'connected';
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = 1000;
+            };
             
-            // Update inventory with better formatting
-            const inventoryDiv = panel.querySelector('.inventory-items');
-            inventoryDiv.innerHTML = '';
-            
-            if (Object.keys(playerData.inventory).length === 0) {
-                const emptySpan = document.createElement('span');
-                emptySpan.className = 'inventory-item';
-                emptySpan.textContent = 'No items';
-                emptySpan.style.fontStyle = 'italic';
-                emptySpan.style.color = '#999';
-                inventoryDiv.appendChild(emptySpan);
-            } else {
-                for (const [item, quantity] of Object.entries(playerData.inventory)) {
-                    const span = document.createElement('span');
-                    span.className = 'inventory-item';
-                    const displayName = item.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    span.textContent = `${displayName}: ${typeof quantity === 'number' ? quantity.toFixed(1) : quantity}`;
-                    inventoryDiv.appendChild(span);
+            this.socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.updateDashboard(data);
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
                 }
-            }
+            };
+            
+            this.socket.onclose = () => {
+                console.log('WebSocket disconnected');
+                document.getElementById('ws-status').textContent = 'disconnected';
+                this.attemptReconnect();
+            };
+            
+            this.socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                document.getElementById('ws-status').textContent = 'error';
+            };
+        } catch (error) {
+            console.error('Failed to initialize WebSocket:', error);
+            document.getElementById('ws-status').textContent = 'failed';
+            this.attemptReconnect();
         }
     }
-}
-
-function startGame() {
-    // Add loading state
-    const button = event.target;
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
-    button.disabled = true;
     
-    fetch('/api/game/start', {method: 'POST'})
-        .then(response => response.json())
-        .then(data => {
-            console.log('Game started:', data);
-            // Clear previous data
-            gdpData = [];
-            inflationData = [];
-            lastTurn = -1;
-            updateChart();
-            
-            // Show success animation
-            button.innerHTML = '<i class="fas fa-check"></i> Started!';
-            button.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+    attemptReconnect() {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay}ms`);
             
             setTimeout(() => {
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }, 2000);
-        })
-        .catch(error => {
-            console.error('Error starting game:', error);
-            button.innerHTML = originalText;
-            button.disabled = false;
-        });
-}
-
-function advanceTurn() {
-    const button = event.target;
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    button.disabled = true;
-    
-    fetch('/api/game/advance_turn', {method: 'POST'})
-        .then(response => response.json())
-        .then(data => {
-            console.log('Turn advanced:', data);
+                this.initializeWebSocket();
+            }, this.reconnectDelay);
             
-            // Show success animation
-            button.innerHTML = '<i class="fas fa-check"></i> Advanced!';
-            setTimeout(() => {
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }, 1000);
-        })
-        .catch(error => {
-            console.error('Error advancing turn:', error);
-            button.innerHTML = originalText;
-            button.disabled = false;
-        });
-}
-
-// Initialize chart with better styling
-function initChart() {
-    const ctx = document.getElementById('gdpChart').getContext('2d');
-    gdpChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'GDP ($)',
-                data: gdpData,
-                borderColor: 'rgba(102, 126, 234, 1)',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: 'rgba(102, 126, 234, 1)',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'GDP ($)',
-                        color: '#666',
-                        font: {
-                            weight: 'bold'
-                        }
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
-                    },
-                    ticks: {
-                        color: '#666',
-                        callback: function(value) {
-                            return '$' + value.toLocaleString();
-                        }
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Turn',
-                        color: '#666',
-                        font: {
-                            weight: 'bold'
-                        }
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
-                    },
-                    ticks: {
-                        color: '#666'
-                    }
-                }
-            },
-            elements: {
-                line: {
-                    borderWidth: 3
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            }
+            // Exponential backoff
+            this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 10000);
+        } else {
+            console.log('Max reconnection attempts reached');
+            document.getElementById('ws-status').textContent = 'failed';
         }
-    });
-}
-
-function updateChart() {
-    if (gdpChart) {
-        gdpChart.data.labels = gdpData.map((_, i) => `Turn ${i + 1}`);
-        gdpChart.data.datasets[0].data = gdpData;
-        gdpChart.update('active');
+    }
+    
+    setupEventListeners() {
+        // Central bank mode switching
+        document.getElementById('ai-mode')?.addEventListener('click', () => {
+            this.setCentralBankMode('ai');
+        });
+        
+        document.getElementById('democratic-mode')?.addEventListener('click', () => {
+            this.setCentralBankMode('democratic');
+        });
+    }
+    
+    setCentralBankMode(mode) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+                action: 'set_mode',
+                mode: mode
+            }));
+        }
+    }
+    
+    updateDashboard(data) {
+        try {
+            // Update turn and mode
+            this.updateElement('current-turn', data.turn || 0);
+            this.updateElement('bank-mode', data.central_bank_mode || 'ai');
+            
+            // Update economic indicators
+            const indicators = data.economic_indicators || {};
+            this.updateElement('gdp', this.formatNumber(indicators.gdp || 0));
+            this.updateElement('inflation', `${indicators.inflation_rate || 0}%`);
+            this.updateElement('employment', `${indicators.employment_rate || 0}%`);
+            this.updateElement('money-supply', this.formatNumber(indicators.money_supply || 0));
+            this.updateElement('velocity', indicators.money_velocity || 0);
+            this.updateElement('price-level', indicators.price_level || 1.00);
+            this.updateElement('new-money', this.formatNumber(indicators.new_money_created || 0));
+            
+            // Update central bank info
+            const centralBank = data.players?.central_bank || {};
+            this.updateElement('cb-fed-funds', this.formatPercentage(centralBank.fed_funds_rate));
+            this.updateElement('taylor-rule', this.formatPercentage(centralBank.taylor_rule_rate));
+            this.updateElement('discount-rate', this.formatPercentage(centralBank.discount_rate));
+            this.updateElement('governance', centralBank.governance_mode || 'ai');
+            this.updateElement('policy-explanation', centralBank.policy_explanation || '—');
+            
+            // Update financial sector
+            const financial = data.players?.financial || {};
+            this.updateElement('commercial-rate', this.formatPercentage(financial.commercial_rate));
+            this.updateElement('deposit-rate', this.formatPercentage(financial.deposit_rate));
+            this.updateElement('lending-capacity', this.formatNumber(financial.banking_capacity));
+            this.updateElement('deposits', this.formatNumber(financial.total_deposits));
+            this.updateElement('loans-outstanding', this.formatNumber(financial.loans_outstanding));
+            this.updateElement('new-loans', this.formatNumber(financial.new_loans_this_turn));
+            
+            // NEW: Update labor market and government info
+            const consumer = data.players?.consumer || {};
+            const government = data.players?.government || {};
+            this.updateElement('unit-wage', this.formatNumber(consumer.current_unit_wage || consumer.income_rate || 0));
+            this.updateElement('employment-confidence', (consumer.consumption_confidence || 1.0).toFixed(3));
+            this.updateElement('tax-rate', `${government.tax_rate || 0}%`);
+            this.updateElement('tax-revenue', this.formatNumber(government.tax_revenue_collected || 0));
+            this.updateElement('gov-spending', this.formatNumber(government.government_spending || 0));
+            this.updateElement('public-debt', this.formatNumber(government.public_debt || 0));
+            
+            // Update fed funds rate in main indicators
+            this.updateElement('fed-funds-rate', this.formatPercentage(centralBank.fed_funds_rate));
+            
+            // Update events
+            this.updateEvents(data.recent_events || []);
+            
+            // Update players
+            this.updatePlayers(data.players || {});
+            
+            // Update histories
+            this.updateHistories(data);
+            
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
+        }
+    }
+    
+    updateElement(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        }
+    }
+    
+    formatNumber(num) {
+        if (num === null || num === undefined || num === '—') return '—';
+        if (typeof num !== 'number') return num;
+        
+        if (Math.abs(num) >= 1000) {
+            return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
+        return num.toFixed(1);
+    }
+    
+    formatPercentage(num) {
+        if (num === null || num === undefined || num === '—') return '—';
+        if (typeof num !== 'number') return num;
+        return `${(num * 100).toFixed(2)}%`;
+    }
+    
+    updateEvents(events) {
+        const eventsList = document.getElementById('events-list');
+        if (eventsList) {
+            eventsList.innerHTML = events.length > 0 
+                ? events.map(event => `<div class="event">${event}</div>`).join('')
+                : '<div class="event">No recent events</div>';
+        }
+    }
+    
+    updatePlayers(players) {
+        const playersGrid = document.getElementById('players-grid');
+        if (!playersGrid) return;
+        
+        playersGrid.innerHTML = '';
+        
+        Object.entries(players).forEach(([name, player]) => {
+            const playerCard = document.createElement('div');
+            playerCard.className = 'player-card';
+            
+            // Format inventory with 0 decimal places
+            const inventoryHtml = Object.entries(player.inventory || {})
+                .map(([item, amount]) => {
+                    const formattedAmount = typeof amount === 'number' ? Math.round(amount) : amount;
+                    return `<div>${item}: ${formattedAmount}</div>`;
+                })
+                .join('');
+            
+            playerCard.innerHTML = `
+                <h3>${player.name || name}</h3>
+                <div class="player-stats">
+                    <div>Money: $${this.formatNumber(player.money || 0)}</div>
+                    <div>Labor: ${(player.labor || 0).toFixed(1)}</div>
+                    <div>Production: $${this.formatNumber(player.production_value || 0)}</div>
+                    <div>Tech Level: ${(player.technology_level || 1).toFixed(3)}</div>
+                </div>
+                <div class="player-inventory">
+                    <h4>Inventory:</h4>
+                    ${inventoryHtml || '<div>Empty</div>'}
+                </div>
+            `;
+            
+            playersGrid.appendChild(playerCard);
+        });
+    }
+    
+    updateHistories(data) {
+        this.updateElement('gdp-history', JSON.stringify(data.gdp_history || []));
+        this.updateElement('m2-history', JSON.stringify(data.m2_history || []));
+        this.updateElement('inflation-history', JSON.stringify(data.inflation_history || []));
+        this.updateElement('employment-history', JSON.stringify(data.employment_history || []));
+        this.updateElement('velocity-history', JSON.stringify(data.velocity_history || []));
+        this.updateElement('rates-history', JSON.stringify(data.interest_rate_history || []));
     }
 }
 
-// Initialize everything when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    initWebSocket();
-    initChart();
-    
-    // Add smooth transitions to all elements
-    document.querySelectorAll('.indicator-card, .player-card').forEach(card => {
-        card.style.transition = 'all 0.3s ease';
-    });
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new EconomicDashboard();
 });

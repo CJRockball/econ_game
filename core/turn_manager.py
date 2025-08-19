@@ -235,7 +235,7 @@ class TurnManager:
                 raw_materials_player.current_price *= 0.92
 
     def clear_finished_goods_market(self, players: Dict[str, object]):
-        """Manufacturing → Consumer with DYNAMIC PRICING - SAFE ACCESS."""
+        """Manufacturing → Consumer with AGGRESSIVE NECESSITY SPENDING - SAFE ACCESS."""
         manufacturing_player = players.get('manufacturing')
         consumer_player = players.get('consumer')
         
@@ -259,10 +259,14 @@ class TurnManager:
             # Price considering technology and quality
             price_per_unit = base_price * supply_factor * (0.8 + 0.4 * tech_factor)
             
-            # Consumer demand affected by employment confidence
+            # AGGRESSIVE SPENDING ON BASIC NECESSITIES - Consumer must buy food/essentials
             confidence = getattr(consumer_player, 'consumption_confidence', 1.0)
             max_affordable = consumer_player.money / price_per_unit
-            demand = min(max_affordable * 0.8 * confidence, 30, supply)  # Confidence affects spending
+            
+            # INCREASED: Consumer spends much more aggressively on basic necessities (food, clothing, etc.)
+            # Use 95% of affordable amount since these are necessities, not luxuries
+            necessity_multiplier = 0.95  # Increased from 0.8 to 0.95
+            demand = min(max_affordable * necessity_multiplier * confidence, 30, supply)
             
             if demand > 0:
                 total_cost = demand * price_per_unit
@@ -293,7 +297,8 @@ class TurnManager:
             else:
                 # No sales - lower price
                 manufacturing_player.current_price *= 0.92
-
+            
+            
     def clear_services_market(self, players: Dict[str, object]):
         """Services market with DYNAMIC PRICING - SAFE ACCESS."""
         services_player = players.get('services')
@@ -312,9 +317,12 @@ class TurnManager:
                 hasattr(player, 'money') and getattr(player, 'money', 0) > 80):
                 
                 # Service demand varies by player type and productivity
+                # Service demand varies by player type and productivity
                 if player_name == 'consumer':
                     confidence = getattr(player, 'consumption_confidence', 1.0)
-                    desired_units = min(player.money / services_player.current_price * 0.2 * confidence, 12)
+                    # INCREASED: Consumers need more services (healthcare, utilities, transport, etc.)
+                    service_necessity_rate = 0.35  # Increased from 0.2 to 0.35
+                    desired_units = min(player.money / services_player.current_price * service_necessity_rate * confidence, 15)  # Increased cap to 15
                 elif player_name == 'financial':
                     desired_units = min(player.money / services_player.current_price * 0.1, 8)
                 else:
